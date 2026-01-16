@@ -1,0 +1,18 @@
+[
+  {
+    "role": "user",
+    "content": "Để trả lời câu hỏi về vị trí của đội bóng Manchester United, cần xác định thành phố mà đội bóng này đặt trụ sở."
+  },
+  {
+    "role": "assistant",
+    "content": "assistant: Đội bóng Manchester United đặt trụ sở tại thành phố Manchester, thuộc vùng Greater Manchester, ở phía tây bắc nước Anh. Sân nhà của đội bóng này là sân vận động Old Trafford, cũng nằm ở Manchester."
+  },
+  {
+    "role": "user",
+    "content": "\nDựa trên toàn bộ cuộc trò chuyện và kết quả của các task đã thực hiện, hãy tóm tắt và đưa ra câu trả lời cuối cùng cho câu hỏi gần nhất được đặt ra: Man Utd là đội bóng ở thành phố nào? Thực hiện 1 Task duy nhất để trả lời!\n\nCONSTRAINT RULES:\n- Tập trung vào câu hỏi để đưa ra câu trả lời ngắn gọn và đầy đủ\n- Không trả lời những thông tin không liên quan hoặc bịa đặt\n- Tổng hợp thông tin từ các task đã thực hiện\n"
+  },
+  {
+    "role": "assistant",
+    "content": "assistant: Manchester United là đội bóng ở thành phố Manchester."
+  }
+]

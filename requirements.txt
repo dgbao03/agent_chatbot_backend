@@ -1,0 +1,15 @@
+# Core LlamaIndex packages
+llama-index-core
+llama-index-llms-openai
+
+# Data validation
+pydantic
+
+# Environment variables
+python-dotenv
+
+# WorkflowServer (REST API)
+llama-index-workflows[server]
+starlette
+uvicorn
+
