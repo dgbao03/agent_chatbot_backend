@@ -13,3 +13,7 @@ llama-index-workflows[server]
 starlette
 uvicorn
 
+# Tools
+tavily-python
+requests
+

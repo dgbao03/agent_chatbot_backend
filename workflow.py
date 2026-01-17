@@ -13,7 +13,16 @@ from llama_index.core.workflow import (
 from llama_index.core.prompts.base import PromptTemplate
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.agent.workflow import AgentWorkflow
+from llama_index.core.agent.workflow.workflow_events import ToolCall, ToolCallResult
+from llama_index.core.tools import FunctionTool
+from llama_index.core.memory import ChatMemoryBuffer
 from memory import MemoryManager
+
+# Import tools
+from tools.web_search_tool import web_search_tool
+from tools.weather_tool import get_weather
+from tools.stock_price_tool import get_stock_price
 
 # Load environment variables trước khi khởi tạo LLM
 load_dotenv()
@@ -77,6 +86,11 @@ Phân tích câu hỏi của người dùng và tạo ra một kế hoạch gồ
 
 Câu hỏi của người dùng: {question}
 
+CÁC TOOLS CÓ SẴN:
+- web_search_tool(query): Tìm kiếm thông tin trên web. Input: query (câu truy vấn tìm kiếm). Output: Kết quả tìm kiếm từ nhiều nguồn.
+- get_weather(location, units): Lấy thông tin thời tiết. Input: location (địa điểm, ví dụ "Hanoi, Vietnam"), units (đơn vị: "metric" hoặc "imperial", mặc định "metric"). Output: Thông tin thời tiết chi tiết.
+- get_stock_price(symbol): Lấy giá cổ phiếu hiện tại. Input: symbol (mã chứng khoán, ví dụ "AAPL", "GOOGL", "MSFT"). Output: Thông tin giá cổ phiếu bao gồm giá hiện tại, thay đổi, phần trăm thay đổi, giá cao/thấp trong ngày.
+
 Các nguyên tắc khi tạo Plan:
 - Số lượng Task để giải quyết vấn đề trong 1 Plan là tối ưu nhất. Tối thiểu là 1 Task
 - Plan không chứa các vòng lặp
@@ -94,6 +108,10 @@ SYSTEM_PROMPT_TMPL = """Bạn là một AI Assistant thông minh và hữu ích.
 
 SUMMARY_PROMPT_TMPL = """
 Dựa trên toàn bộ cuộc trò chuyện và kết quả của các task đã thực hiện, hãy tóm tắt và đưa ra câu trả lời cuối cùng cho câu hỏi gần nhất được đặt ra: {question}
+
+QUAN TRỌNG:
+- Bạn đã có thông tin từ các task đã thực hiện trong chat history
+- Hãy sử dụng thông tin đó để trả lời câu hỏi
 
 CONSTRAINT RULES:
 - Tập trung vào câu hỏi để đưa ra câu trả lời ngắn gọn và đầy đủ
@@ -113,14 +131,30 @@ SYSTEM_PROMPT = PromptTemplate(
 )
 
 # Initialize LLM instances
-llm = OpenAI(model="gpt-4o")
+llm = OpenAI(model="gpt-4o-mini")
 plan_agent = llm.as_structured_llm(output_cls=TaskPlan)
 
 system_messages = [
     ChatMessage(role=MessageRole.SYSTEM, content=SYSTEM_PROMPT.format())
 ]
 
-# Helper function để chat với LLM (thay thế FunctionAgent vì không có tools)
+# Tạo execution tools list
+execution_tools = [
+    web_search_tool,
+    get_weather,
+    get_stock_price,
+]
+
+# Tạo execution agent với tools (AgentWorkflow)
+execution_agent = AgentWorkflow.from_tools_or_functions(
+    tools_or_functions=execution_tools,
+    llm=llm,
+    system_prompt=SYSTEM_PROMPT_TMPL,
+    verbose=True,
+    timeout=300,
+)
+
+# Helper function để chat với LLM (dùng cho finalize step)
 async def chat_with_llm(message: str, chat_history: List[ChatMessage] = None) -> str:
     """
     Chat với LLM trực tiếp
@@ -130,7 +164,7 @@ async def chat_with_llm(message: str, chat_history: List[ChatMessage] = None) ->
         chat_history: Chat history (optional)
         
     Returns:
-        str: LLM response
+        str: LLM response content (không có prefix)
     """
     if chat_history is None:
         chat_history = []
@@ -143,7 +177,99 @@ async def chat_with_llm(message: str, chat_history: List[ChatMessage] = None) ->
     # Chat với LLM
     response = await llm.achat(messages)
     
-    return str(response)
+    # Lấy content từ response, không convert toàn bộ object
+    if hasattr(response, 'message') and hasattr(response.message, 'content'):
+        result = str(response.message.content)
+    elif hasattr(response, 'content'):
+        result = str(response.content)
+    else:
+        # Fallback: convert to string và loại bỏ prefix nếu có
+        result = str(response)
+    
+    # Loại bỏ prefix "assistant: " nếu có
+    if result.startswith("assistant: "):
+        result = result[len("assistant: "):].strip()
+    
+    return result
+
+
+# Helper function để execute task với FunctionAgent có tools
+async def execute_task_with_agent(
+    task_rationale: str,
+    chat_history: List[ChatMessage]
+) -> str:
+    """
+    Chạy task với FunctionAgent có tools
+    
+    Args:
+        task_rationale: Task rationale từ plan
+        chat_history: Chat history hiện tại
+        
+    Returns:
+        str: Final response từ agent
+    """
+    try:
+        # Tạo memory từ chat_history
+        memory = ChatMemoryBuffer.from_defaults()
+        for msg in chat_history:
+            memory.put(msg)
+        
+        # Chạy agent với task rationale
+        # AgentWorkflow.run() trả về WorkflowHandler (là awaitable)
+        handler = execution_agent.run(
+            user_msg=task_rationale,
+            memory=memory,
+            max_iterations=5,  # Giới hạn 5 lần gọi tool
+        )
+        
+        # Stream events để log tool calls
+        tool_call_count = 0
+        async for event in handler.stream_events():
+            if isinstance(event, ToolCall):
+                tool_call_count += 1
+                logger.info(f"Tool Call #{tool_call_count}: {event.tool_name}")
+                logger.info(f"Arguments: {event.tool_kwargs}")
+            elif isinstance(event, ToolCallResult):
+                tool_output = event.tool_output.content
+                # Truncate nếu quá dài
+                if len(tool_output) > 1000:
+                    tool_output_preview = tool_output[:1000] + "..."
+                else:
+                    tool_output_preview = tool_output
+                logger.info(f"Tool Result: {event.tool_name}")
+                logger.info(f"Output: {tool_output_preview}")
+                if event.tool_output.is_error:
+                    logger.warning(f"Tool returned error!")
+        
+        # Await handler để lấy final response
+        result = await handler
+        
+        if tool_call_count > 0:
+            logger.info(f"  📊 Total tool calls: {tool_call_count}")
+        
+        # Xử lý result và loại bỏ prefix nếu có
+        if isinstance(result, str):
+            # Loại bỏ prefix "assistant: " nếu có
+            if result.startswith("assistant: "):
+                result = result[len("assistant: "):].strip()
+            return result
+        elif hasattr(result, 'content'):
+            # Nếu là ChatMessage object
+            content = str(result.content)
+            if content.startswith("assistant: "):
+                content = content[len("assistant: "):].strip()
+            return content
+        else:
+            # Fallback
+            result_str = str(result)
+            if result_str.startswith("assistant: "):
+                result_str = result_str[len("assistant: "):].strip()
+            return result_str
+            
+    except Exception as e:
+        error_msg = f"Lỗi khi chạy agent: {str(e)}"
+        logger.error(error_msg, exc_info=True)  # Thêm exc_info để debug
+        return error_msg
 
 
 # Events
@@ -226,9 +352,9 @@ class ComplexQuestionWorkflow(Workflow):
             logger.info(f"Task rationale: {task.task_rationale}")
             
             try:
-                # Thực thi task bằng LLM
-                task_output = await chat_with_llm(
-                    message=task.task_rationale, 
+                # Thực thi task bằng FunctionAgent với tools
+                task_output = await execute_task_with_agent(
+                    task_rationale=task.task_rationale,
                     chat_history=chat_history
                 )
                 
