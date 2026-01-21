@@ -1,10 +1,10 @@
 [
   {
-    "key": "name",
-    "value": "Bao Do"
+    "key": "favorite_team",
+    "value": "Man Utd"
   },
   {
-    "key": "location",
-    "value": "Hanoi"
+    "key": "favorite_player",
+    "value": "Casemiro"
   }
 ]

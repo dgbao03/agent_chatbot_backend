@@ -1,34 +1,10 @@
 [
   {
     "role": "user",
-    "content": "tôi thích ăn gì và không thích ăn gì?"
+    "content": "nãy tôi có nhắc đến Chúc, bạn còn nhớ mối quan hệ giữa tôi và Chúc như nào không?"
   },
   {
     "role": "assistant",
-    "content": "Bạn thích ăn sushi và không thích đồ dầu mỡ."
-  },
-  {
-    "role": "user",
-    "content": "anh chàng cũng thích Chúc tên là gì?"
-  },
-  {
-    "role": "assistant",
-    "content": "Anh chàng cũng thích Chúc tên là Quang."
-  },
-  {
-    "role": "user",
-    "content": "tôi thích đội bóng nào ý nhỉ?"
-  },
-  {
-    "role": "assistant",
-    "content": "Bạn thích đội bóng Manchester United."
-  },
-  {
-    "role": "user",
-    "content": "cầu thủ tôi thích là ai?"
-  },
-  {
-    "role": "assistant",
-    "content": "Bạn thích cầu thủ Bruno Fernandes."
+    "content": "Bạn đã đề cập rằng bạn thích cô gái tên Chúc nhưng gặp khó khăn trong việc tiến tới với cô ấy. Đồng thời, bạn của bạn là Quang cũng thích Chúc, tạo ra tình huống phức tạp trong mối quan hệ của bạn."
   }
 ]
