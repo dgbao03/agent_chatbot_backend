@@ -26,6 +26,41 @@ llm = OpenAI(model="gpt-4o-mini")
 
 from llama_index.core.tools import FunctionTool
 
+# ==================== Chat History Helper Functions ====================
+
+CHAT_HISTORY_FILE = Path(__file__).parent / "database" / "recent_chat_history.json"
+
+def _load_chat_history() -> list:
+    """Load recent chat history từ file JSON. Trả về list rỗng nếu file không tồn tại hoặc lỗi."""
+    try:
+        if not CHAT_HISTORY_FILE.exists():
+            return []
+
+        with open(CHAT_HISTORY_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if not content:
+                return []
+            history = json.loads(content)
+            if not isinstance(history, list):
+                return []
+            return history
+    except (json.JSONDecodeError, IOError, Exception) as e:
+        print(f"Lỗi khi đọc recent_chat_history.json: {e}")
+        return []
+
+def _save_chat_history(history: list) -> bool:
+    """Lưu recent chat history vào file JSON. Trả về True nếu thành công."""
+    try:
+        CHAT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temp_file = CHAT_HISTORY_FILE.with_suffix(".tmp")
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+        temp_file.replace(CHAT_HISTORY_FILE)
+        return True
+    except (IOError, Exception) as e:
+        print(f"Lỗi khi ghi recent_chat_history.json: {e}")
+        return False
+
 # ==================== User Facts Helper Functions ====================
 
 USER_FACTS_FILE = Path(__file__).parent / "database" / "user_facts.json"
@@ -224,11 +259,14 @@ class RouterWorkflow(Workflow):
 
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
 
+        chat_history = _load_chat_history()
+
         # Memory
-        memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
-        if memory is None:
-            memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
-            await ctx.store.set("chat_history", memory)
+        memory = ChatMemoryBuffer.from_defaults(token_limit=200)
+        await ctx.store.set("chat_history", memory)
+
+        for chat in chat_history:
+            memory.put(ChatMessage(role=chat["role"], content=chat["content"]))
 
         history = memory.get()
 
@@ -266,6 +304,13 @@ class RouterWorkflow(Workflow):
             "- Do NOT include any extra text outside JSON\n"
             "- REMEMBER: ALWAYS return JSON format, NO EXCEPTIONS, NO PLAIN TEXT!"
         )
+        
+        # Format history vào System Prompt nếu có
+        if history:
+            history_text = "\n===== CHAT HISTORY =====\n"
+            for msg in history:
+                history_text += f"{msg.role.value}: {msg.content}\n"
+            system_content += "\n\n" + history_text
 
         messages = [
             ChatMessage(
@@ -273,9 +318,6 @@ class RouterWorkflow(Workflow):
                 content=system_content
             )
         ]
-
-        if history:
-            messages.extend(history)
 
         messages.append(ChatMessage(role=MessageRole.USER, content=user_input))
         memory.put(ChatMessage(role=MessageRole.USER, content=user_input))
@@ -328,8 +370,6 @@ class RouterWorkflow(Workflow):
 
                 messages.append(tool_msg)
 
-        await ctx.store.set("chat_history", memory)
-
         raw_text = resp.message.content.strip()
 
         print(f"\n==== Raw text: {raw_text} ====\n")
@@ -353,31 +393,10 @@ class RouterWorkflow(Workflow):
                     content="This is a PPTX Generation Mission"
                 )
             )
+        
+        _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
 
         await ctx.store.set("chat_history", memory)
-
-         # Log messages với format dễ đọc
-        print("\n" + "="*60)
-        print("MESSAGES:")
-        print("="*60)
-        for i, msg in enumerate(messages, 1):
-            print(f"\n[{i}] {msg.role.value}:")
-            if msg.content:
-                # Truncate nếu quá dài
-                content = msg.content
-                if len(content) > 500:
-                    content = content[:500] + "... [truncated]"
-                print(f"    Content: {content}")
-            if msg.additional_kwargs:
-                tool_calls = msg.additional_kwargs.get("tool_calls")
-                tool_call_id = msg.additional_kwargs.get("tool_call_id")
-                if tool_calls:
-                    print(f"    Tool Calls: {len(tool_calls)} call(s)")
-                    for j, call in enumerate(tool_calls, 1):
-                        print(f"      [{j}] {call.function.name}({call.function.arguments})")
-                elif tool_call_id:
-                    print(f"    Tool Call ID: {tool_call_id}")
-        print("="*60 + "\n")
 
         # 🔀 Backend routing
         if output.intent == "PPTX":
@@ -390,22 +409,11 @@ async def main():
     workflow = RouterWorkflow()
     ctx = Context(workflow)
 
-    # Khởi tạo memory và set vào context
-    memory = ChatMemoryBuffer.from_defaults(token_limit=10000)
-    await ctx.store.set("chat_history", memory)
-
-    # GENERAL
-    # result1 = await workflow.run(
-    #     input="Bạn có biết tên tôi là gì không?",
-    #     ctx=ctx
-    # )
-    # print("\nResponse 1:", result1)
-
-    result2 = await workflow.run(
-        input="Tôi tên là gì? và đang sống ở đâu?",
+    result1 = await workflow.run(
+        input="Không tôi sẽ đợi Chúc, vì tôi yêu cô ấy rất nhiều!",
         ctx=ctx
     )
-    print("\nResponse 2:", result2)
+    print("\nResponse 1:", result1)
     
     # chat_history
     chat_history: ChatMemoryBuffer = await ctx.store.get("chat_history")
