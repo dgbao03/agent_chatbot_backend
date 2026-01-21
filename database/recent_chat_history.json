@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "role": "user",
+    "content": "tôi thích ăn gì và không thích ăn gì?"
+  },
+  {
+    "role": "assistant",
+    "content": "Bạn thích ăn sushi và không thích đồ dầu mỡ."
+  },
+  {
+    "role": "user",
+    "content": "anh chàng cũng thích Chúc tên là gì?"
+  },
+  {
+    "role": "assistant",
+    "content": "Anh chàng cũng thích Chúc tên là Quang."
+  },
+  {
+    "role": "user",
+    "content": "tôi thích đội bóng nào ý nhỉ?"
+  },
+  {
+    "role": "assistant",
+    "content": "Bạn thích đội bóng Manchester United."
+  },
+  {
+    "role": "user",
+    "content": "cầu thủ tôi thích là ai?"
+  },
+  {
+    "role": "assistant",
+    "content": "Bạn thích cầu thủ Bruno Fernandes."
+  }
+]

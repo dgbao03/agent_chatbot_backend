@@ -483,7 +483,7 @@ class RouterWorkflow(Workflow):
 
     @step
     async def route_and_answer(self, ctx: Context, ev: StartEvent) -> StopEvent:
-        user_input = ev.input
+        user_input = ev.user_input
 
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
 
@@ -713,8 +713,6 @@ class RouterWorkflow(Workflow):
             print("\nTRUNCATE STATUS: Not Truncated\n")
             # Lưu chat history bình thường
             _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
-
-        print(f"\nMessages:\n {messages}")
 
         # 🔀 Backend routing
         if output.intent == "PPTX":
