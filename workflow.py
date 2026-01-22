@@ -103,7 +103,7 @@ class RouterWorkflow(Workflow):
             '  "answer": "string | null"\n'
             "}\n"
             "- If intent is PPTX → answer MUST be null\n"
-            "- If intent is GENERAL → answer MUST be provided, always return a response, cannot be none or null, ...\n"
+            "- If intent is GENERAL → answer MUST be provided, answer must be in String format, always return a response, cannot be none or null, ...\n"
             "- Do NOT include any extra text outside JSON\n"
             "- REMEMBER: ALWAYS return JSON format, NO EXCEPTIONS, NO PLAIN TEXT!"
         )

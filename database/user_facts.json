@@ -6,13 +6,5 @@
   {
     "key": "location",
     "value": "Hanoi"
-  },
-  {
-    "key": "favorite_team",
-    "value": "ManUtd"
-  },
-  {
-    "key": "favorite_player",
-    "value": "Casemiro"
   }
 ]

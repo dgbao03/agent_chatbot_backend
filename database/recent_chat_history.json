@@ -1,26 +1,26 @@
 [
   {
     "role": "user",
-    "content": "tôi thích ăn món gì ấy nhỉ?"
+    "content": "tôi thích ăn gì ấy nhỉ?"
   },
   {
     "role": "assistant",
-    "content": "Bạn thích ăn sushi và bánh mì Huỳnh Hoa."
+    "content": "Bạn thích ăn sushi và bánh mì Việt Nam, đặc biệt là bánh mì Huỳnh Hoa."
   },
   {
     "role": "user",
-    "content": "tôi thích dòng xe nào ấy nhỉ?"
+    "content": "tôi đang quan tâm dòng xe nào?"
   },
   {
     "role": "assistant",
-    "content": "Bạn thích xe máy, đặc biệt là Vespa và Triumph."
+    "content": "Bạn đang quan tâm đến dòng xe Vespa, cụ thể là Vespa Primavera, Vespa GTS Super và Vespa Sei Giorni."
   },
   {
     "role": "user",
-    "content": "tình cảnh tình cảm tôi gặp phải là gì ấy nhỉ?"
+    "content": "người bạn của tôi nhắc đến lúc nãy là ai?"
   },
   {
     "role": "assistant",
-    "content": "Bạn đã trải qua một mối tình ngắn ngủi với người yêu cũ tên Đào Thảo, và điều này đã để lại vết thương sâu sắc trong lòng bạn. Có thể bạn đang cảm thấy buồn bã và cần thời gian để chữa lành."
+    "content": "Người bạn mà bạn nhắc đến là Bách, người sở hữu một chiếc Vespa GTS và làm cà phê cũng như đầu tư chứng khoán."
   }
 ]
