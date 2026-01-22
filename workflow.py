@@ -3,12 +3,14 @@ import hashlib
 from dotenv import load_dotenv
 load_dotenv()
 
+import asyncio
 from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
 from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.tools import FunctionTool
+from llama_index.core.workflow.events import Event
 
 # Import từ các module mới
 from config.models import RouterOutput
@@ -20,6 +22,9 @@ from tools.weather import get_weather
 from tools.stock import get_stock_price
 
 llm = OpenAI(model="gpt-4o-mini")
+
+class StreamResponseEvent(Event):
+    content: str
 
 tools = [
     FunctionTool.from_defaults(
@@ -289,24 +294,46 @@ class RouterWorkflow(Workflow):
             # Lưu chat history bình thường
             _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
 
-        # 🔀 Backend routing
-        if output.intent == "PPTX":
-            return StopEvent(result="This is a PPTX Generation Mission")
-        else:
+        # 🔀 Backend routing + STREAMING
+        if output.intent == "GENERAL":
+            answer_text = output.answer
+            
+            # Stream từng chunk (tối ưu)
+            chunk_size = 3  # Số ký tự mỗi chunk
+            for i in range(0, len(answer_text), chunk_size):
+                chunk = answer_text[i:i+chunk_size]
+                ctx.write_event_to_stream(StreamResponseEvent(content=chunk))
+                await asyncio.sleep(0.1)
+            
             return StopEvent(result=output.answer)
-
+        else:
+            return StopEvent(result="This is a PPTX Generation Mission")
 
 async def main():
     workflow = RouterWorkflow()
     ctx = Context(workflow)
 
-    result1 = await workflow.run(
-        input="100 + 1 = ?",
+    # Khởi động workflow và lấy handler
+    handler = workflow.run(
+        input="Manchester United là đội bóng nào?",
         ctx=ctx
     )
-    print("\nResponse 1:", result1)
     
-    # chat_history
+    # Lắng nghe streaming events
+    print("\n=== STREAMING RESPONSE ===\n")    
+    async for event in handler.stream_events():
+        if isinstance(event, StreamResponseEvent):
+            # Print từng chunk không xuống dòng
+            print(event.content, end="", flush=True)
+        elif isinstance(event, StopEvent):
+            # Workflow kết thúc
+            print("\n\n=== WORKFLOW COMPLETED ===\n")
+    
+    # Đợi workflow hoàn thành và lấy kết quả cuối cùng
+    result1 = await handler
+    print(f"\nFinal Result: {result1}")
+
+     # chat_history
     chat_history: ChatMemoryBuffer = await ctx.store.get("chat_history")
     if chat_history:
         history_messages = chat_history.get()
