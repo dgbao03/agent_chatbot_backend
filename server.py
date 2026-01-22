@@ -10,6 +10,25 @@ from workflow import RouterWorkflow
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Suppress CancelledError từ asyncio logs (khi cancel workflow)
+class CancelledErrorFilter(logging.Filter):
+    def filter(self, record):
+        # Bỏ qua log nếu có CancelledError trong exception info
+        if record.exc_info:
+            exc_type = record.exc_info[0]
+            if exc_type is asyncio.CancelledError:
+                return False
+        # Bỏ qua log nếu message chứa "CancelledError" hoặc "cancelled"
+        if record.getMessage().find('CancelledError') != -1 or \
+           record.getMessage().find('cancelled') != -1:
+            return False
+        return True
+
+# Áp dụng filter cho asyncio logger
+logging.getLogger('asyncio').addFilter(CancelledErrorFilter())
+# Áp dụng filter cho root logger để catch tất cả
+logging.getLogger().addFilter(CancelledErrorFilter())
+
 
 async def main():
     """
