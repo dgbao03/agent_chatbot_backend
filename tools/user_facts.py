@@ -1,4 +1,4 @@
-from user_facts.storage import _load_user_facts, _save_user_facts, _find_fact_by_key
+from memory_helper_functions.user_facts import _load_user_facts, _save_user_facts, _find_fact_by_key
 
 def add_user_fact(key: str, value: str) -> str:
     try:

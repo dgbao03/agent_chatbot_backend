@@ -1,7 +1,15 @@
 [
   {
+    "key": "name",
+    "value": "Bao Do"
+  },
+  {
+    "key": "location",
+    "value": "Hanoi"
+  },
+  {
     "key": "favorite_team",
-    "value": "Man Utd"
+    "value": "ManUtd"
   },
   {
     "key": "favorite_player",

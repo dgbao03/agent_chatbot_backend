@@ -12,13 +12,12 @@ from llama_index.core.tools import FunctionTool
 
 # Import từ các module mới
 from config.models import RouterOutput
-from memory.chat_history import _load_chat_history, _save_chat_history
-from memory.summary import _load_chat_summary, _create_summary
-from memory.split_strategy import _split_messages_for_summary
-from user_facts.formatter import _format_user_facts_for_prompt
-from user_facts.tools import add_user_fact, update_user_fact, delete_user_fact
-from tools.weather_tool import get_weather
-from tools.stock_price_tool import get_stock_price
+from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history
+from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary
+from memory_helper_functions.user_facts import _format_user_facts_for_prompt
+from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
+from tools.weather import get_weather
+from tools.stock import get_stock_price
 
 llm = OpenAI(model="gpt-4o-mini")
 
@@ -54,6 +53,11 @@ class RouterWorkflow(Workflow):
 
     @step
     async def route_and_answer(self, ctx: Context, ev: StartEvent) -> StopEvent:
+
+        # Dùng khi chạy trực tiếp với hàm main()
+        # user_input = ev.input
+
+        # Dùng khi chạy WorkflowServer
         user_input = ev.user_input
 
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
@@ -297,7 +301,7 @@ async def main():
     ctx = Context(workflow)
 
     result1 = await workflow.run(
-        input="Tại sao yêu đơn phương lại đau?",
+        input="100 + 1 = ?",
         ctx=ctx
     )
     print("\nResponse 1:", result1)
