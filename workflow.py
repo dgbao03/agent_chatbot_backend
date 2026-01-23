@@ -191,7 +191,10 @@ class RouterWorkflow(Workflow):
         try:
             output = RouterOutput.model_validate_json(raw_text)
         except Exception as e:
-            raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
+            # raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
+            print(f"ERROR: Invalid JSON output:\n{raw_text}\nException: {e}")
+
+            return StopEvent(result="Sorry, I encountered an error processing your request. Please try again.")
 
         if output.intent == "GENERAL":
             memory.put(
