@@ -45,27 +45,47 @@ tools = [
     FunctionTool.from_defaults(
         fn=get_weather,
         name="get_weather",
-        description="Lấy thông tin thời tiết theo thành phố. Sử dụng khi người dùng hỏi về thời tiết của một thành phố cụ thể"
+        description="""
+        Lấy thông tin thời tiết theo thành phố. Input: Tên thành phố. 
+        Lưu ý: Chỉ sử dụng khi User yêu cầu thông tin thời tiết về thành phố.
+        Không sử dụng khi trong Request có tên thành phố/địa danh nhưng không yêu cầu thông tin thời tiết."""
     ), 
     FunctionTool.from_defaults(
         fn=get_stock_price,
         name="get_stock_price",
-        description="Lấy thông tin giá cổ phiếu theo mã cổ phiếu. Sử dụng khi người dùng hỏi về giá cổ phiếu của một công ty cụ thể"
+        description="""
+        Lấy thông tin giá cổ phiếu theo mã cổ phiếu. Input: Mã cổ phiếu.
+        Lưu ý: Chỉ sử dụng khi User yêu cầu thông tin giá cổ phiếu của một công ty cụ thể.
+        Không sử dụng khi trong Request có mã cổ phiếu/địa danh/tên công ty nhưng không yêu cầu thông tin giá cổ phiếu."""
     ),
     FunctionTool.from_defaults(
         fn=add_user_fact,
         name="add_user_fact",
-        description="Thêm hoặc cập nhật user fact. Khi người dùng yêu cầu thêm thông tin, ví dụ: 'Lưu lại rằng tôi tên là Bao Do', 'Nhớ rằng tôi sống ở Hà Nội'. Nếu key đã tồn tại, giá trị mới sẽ thay thế giá trị cũ. Các thông tin sẽ được lưu dưới dạng key-value (ví dụ: 'name': 'Bao Do', 'location': 'Hà Nội')."
+        description="""
+        Định nghĩa User Fact: Các thông tin quan trọng/cá nhân về User cần ghi nhớ.
+        Sử dụng hàm khi thêm User Fact. 
+        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu nhớ thông tin của họ. Không tự ý dùng hàm này.
+        Khi người dùng yêu cầu thêm thông tin, ví dụ: 'Lưu lại rằng tôi tên là Bao Do', 'Nhớ rằng tôi sống ở Hà Nội'. 
+        Các thông tin sẽ được lưu dưới dạng key-value (ví dụ: 'name': 'Bao Do', 'location': 'Hà Nội')."""
     ),
     FunctionTool.from_defaults(
         fn=update_user_fact,
         name="update_user_fact",
-        description="Cập nhật user fact theo key. Nếu key không tồn tại, công cụ sẽ báo lỗi. Ví dụ: khi người dùng yêu cầu sửa đổi 'tuổi tôi là 30' hoặc 'tên tôi là Bao Do', công cụ sẽ cập nhật thông tin tương ứng. Nếu key không có, sẽ trả về lỗi như 'Key không tồn tại'."
+        description="""
+        Sử dụng hàm khi cập nhật User Fact theo key.
+        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu cập nhật thông tin của họ. Không tự ý dùng hàm này.
+        Nếu key không tồn tại, công cụ sẽ báo lỗi. 
+        Ví dụ: khi người dùng yêu cầu sửa đổi 'tuổi tôi là 30' hoặc 'tên tôi là Bao Do', công cụ sẽ cập nhật thông tin tương ứng. 
+        Nếu key không có, sẽ trả về lỗi như 'Key không tồn tại'."""
     ),
     FunctionTool.from_defaults(
         fn=delete_user_fact,
         name="delete_user_fact",
-        description="Xóa user fact theo key. Ví dụ: nếu người dùng yêu cầu 'Xóa tên tôi' hoặc 'Xóa tuổi tôi', công cụ sẽ xóa key tương ứng. Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'. Sau khi xóa, trả về thông báo thành công."
+        description="""
+        Sử dụng hàm khi xóa User Fact theo key.
+        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa thông tin của họ. Không tự ý dùng hàm này.
+        Ví dụ: nếu người dùng yêu cầu 'Xóa tên tôi' hoặc 'Xóa tuổi tôi', công cụ sẽ xóa key tương ứng. 
+        Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'."""
     )
 ]
 
