@@ -17,3 +17,6 @@ uvicorn
 tavily-python
 requests
 
+# FastAPI
+fastapi
+

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 
 class RouterOutput(BaseModel):
     intent: Literal["PPTX", "GENERAL"] = Field(
@@ -51,12 +51,24 @@ class SlideIndex(BaseModel):
     next_id_counter: int = Field(default=1, description="Counter để generate slide ID tiếp theo")
 
 
+class VersionEntry(BaseModel):
+    """Model cho mỗi version entry trong version_history"""
+    version: int = Field(description="Version number")
+    html_content: str = Field(description="Nội dung HTML của version này")
+    timestamp: str = Field(description="Timestamp của version này (ISO format)")
+    user_request: str = Field(description="User request dẫn đến version này")
+
+
 class SlideData(BaseModel):
     """Model cho slide_XXXXXX.json structure"""
     slide_id: str = Field(description="Slide ID (ví dụ: 'slide_001')")
     topic: str = Field(description="Chủ đề của slide")
-    html_content: str = Field(description="Nội dung HTML đầy đủ của slide")
+    html_content: str = Field(description="Nội dung HTML đầy đủ của slide (current version)")
     created_at: str = Field(description="Timestamp tạo slide (ISO format)")
     last_modified: str = Field(description="Timestamp sửa lần cuối (ISO format)")
-    version: int = Field(description="Version number, tăng mỗi lần edit")
+    version: int = Field(description="Version number hiện tại, tăng mỗi lần edit")
     metadata: dict = Field(default_factory=dict, description="Metadata bổ sung (user_request, etc.)")
+    version_history: List[VersionEntry] = Field(
+        default_factory=list,
+        description="Lịch sử các version trước đó. Version hiện tại nằm ở html_content, không nằm trong history."
+    )

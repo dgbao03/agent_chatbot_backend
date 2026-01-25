@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from datetime import datetime
 from config.settings import SLIDES_DIR, SLIDE_INDEX_FILE
-from config.models import SlideIndex, SlideEntry, SlideData, SlideIntentOutput, SlideOutput
+from config.models import SlideIndex, SlideEntry, SlideData, SlideIntentOutput, SlideOutput, VersionEntry
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.prompts import ChatPromptTemplate
 
@@ -343,7 +343,19 @@ def _save_slide_result(
         if not existing_slide:
             raise ValueError(f"Slide file not found: {file_name}")
         
-        # Update slide data
+        # === ARCHIVE CURRENT VERSION vào version_history ===
+        current_version_entry = VersionEntry(
+            version=existing_slide.version,
+            html_content=existing_slide.html_content,
+            timestamp=existing_slide.last_modified,
+            user_request=existing_slide.metadata.get("user_request", "")
+        )
+        
+        # Copy existing version_history và append current version
+        new_version_history = existing_slide.version_history.copy()
+        new_version_history.append(current_version_entry)
+        
+        # Update slide data với version mới
         updated_slide = SlideData(
             slide_id=existing_slide.slide_id,
             topic=slide_output.topic,  # Update topic từ LLM output
@@ -353,8 +365,9 @@ def _save_slide_result(
             version=existing_slide.version + 1,
             metadata={
                 **existing_slide.metadata,
-                "last_user_request": user_input
-            }
+                "user_request": user_input  # Update user_request for this version
+            },
+            version_history=new_version_history  # Lưu history
         )
         
         # Save (overwrite)
@@ -377,4 +390,115 @@ def _save_slide_result(
             raise IOError("Failed to save slide index")
         
         print(f"✅ Updated slide: {target_slide_id} (v{existing_slide.version} → v{updated_slide.version})")
-        return target_slide_id 
+        return target_slide_id
+
+
+def get_slide_versions(slide_id: str) -> Optional[list]:
+    """
+    Lấy danh sách tất cả versions của một slide (metadata only).
+    
+    Args:
+        slide_id: ID của slide (ví dụ: "slide_001")
+    
+    Returns:
+        List of version metadata hoặc None nếu slide không tồn tại
+        Format: [
+            {
+                "version": 1,
+                "timestamp": "2026-01-25T14:00:00",
+                "user_request": "Tạo slide về AI"
+            },
+            ...
+        ]
+    """
+    try:
+        # Load index để tìm file name
+        index = _load_slide_index()
+        slide_entry = None
+        for slide in index.slides:
+            if slide.id == slide_id:
+                slide_entry = slide
+                break
+        
+        if not slide_entry:
+            print(f"❌ Slide {slide_id} not found in index")
+            return None
+        
+        # Load slide data
+        slide_data = _load_slide_file(slide_entry.file)
+        if not slide_data:
+            print(f"❌ Slide file not found for {slide_id}")
+            return None
+        
+        # Build version list: history + current
+        versions = []
+        
+        # Add versions from history
+        for entry in slide_data.version_history:
+            versions.append({
+                "version": entry.version,
+                "timestamp": entry.timestamp,
+                "user_request": entry.user_request
+            })
+        
+        # Add current version
+        versions.append({
+            "version": slide_data.version,
+            "timestamp": slide_data.last_modified,
+            "user_request": slide_data.metadata.get("user_request", ""),
+            "is_current": True
+        })
+        
+        return versions
+        
+    except Exception as e:
+        print(f"❌ Error getting versions for {slide_id}: {e}")
+        return None
+
+
+def get_slide_version_content(slide_id: str, version: int) -> Optional[str]:
+    """
+    Lấy HTML content của một version cụ thể.
+    
+    Args:
+        slide_id: ID của slide (ví dụ: "slide_001")
+        version: Version number cần lấy
+    
+    Returns:
+        HTML content string hoặc None nếu không tìm thấy
+    """
+    try:
+        # Load index để tìm file name
+        index = _load_slide_index()
+        slide_entry = None
+        for slide in index.slides:
+            if slide.id == slide_id:
+                slide_entry = slide
+                break
+        
+        if not slide_entry:
+            print(f"❌ Slide {slide_id} not found in index")
+            return None
+        
+        # Load slide data
+        slide_data = _load_slide_file(slide_entry.file)
+        if not slide_data:
+            print(f"❌ Slide file not found for {slide_id}")
+            return None
+        
+        # Check if version is current
+        if version == slide_data.version:
+            return slide_data.html_content
+        
+        # Search in version_history
+        for entry in slide_data.version_history:
+            if entry.version == version:
+                return entry.html_content
+        
+        # Version not found
+        print(f"❌ Version {version} not found for slide {slide_id}")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error getting version content for {slide_id} v{version}: {e}")
+        return None

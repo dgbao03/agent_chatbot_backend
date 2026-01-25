@@ -469,8 +469,6 @@ class RouterWorkflow(Workflow):
             
             # Xử lý memory truncation và summary
             await self._process_memory_and_truncate(ctx, memory)
-
-        print(messages)
         
         return StopEvent(result=slide_output.model_dump())
 

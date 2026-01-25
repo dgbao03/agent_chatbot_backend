@@ -1,7 +1,15 @@
 [
   {
     "role": "user",
-    "content": "tạo slide về cú ăn của man utd"
+    "content": "bạn biết gì về tôi"
+  },
+  {
+    "role": "assistant",
+    "content": "Tôi biết rằng bạn tên là Bao Do và bạn sống ở Hà Nội."
+  },
+  {
+    "role": "user",
+    "content": "tạo slide về chủ đề cú ăn của Man utd"
   },
   {
     "role": "assistant",
@@ -9,50 +17,34 @@
   },
   {
     "role": "user",
-    "content": "sửa lại tiêu đề của slide thành Cú ăn 3 vĩ đại nhất nước Anh"
+    "content": "sửa tiêu đề thành Greatest Triple in the History"
   },
   {
     "role": "assistant",
-    "content": "Slide đã được tạo thành công với tiêu đề mới 'Cú ăn 3 vĩ đại nhất nước Anh'."
+    "content": "Slide đã được tạo thành công với tiêu đề mới 'Greatest Triple in the History'."
   },
   {
     "role": "user",
-    "content": "tạo slide về chức vô địch epl của leicester city"
+    "content": "tạo slide về chủ đề vô địch epl của Leicester city"
   },
   {
     "role": "assistant",
-    "content": "Slide đã được tạo thành công với nội dung về chức vô địch EPL của Leicester City."
+    "content": "Slide đã được tạo thành công với nội dung về vô địch EPL của Leicester City."
   },
   {
     "role": "user",
-    "content": "sửa lại màu nền của slide thành màu tím nhạt"
+    "content": "sửa màu nền thành màu tím"
   },
   {
     "role": "assistant",
-    "content": "Slide đã được chỉnh sửa với màu nền mới là màu tím nhạt."
+    "content": "Slide đã được tạo thành công với màu nền mới là màu tím."
   },
   {
     "role": "user",
-    "content": "sửa lại tiêu đề của slide cú ăn 3 thành: Greatest Triple in England, better than City"
+    "content": "sửa tiêu đề slide cú ăn 3 thành Better Triple than Man City"
   },
   {
     "role": "assistant",
-    "content": "Slide đã được chỉnh sửa thành công với tiêu đề mới 'Greatest Triple in England, better than City'."
-  },
-  {
-    "role": "user",
-    "content": "bạn biết gì về tôi?"
-  },
-  {
-    "role": "assistant",
-    "content": "Bạn tên là Bao Do và đang sống ở Hà Nội."
-  },
-  {
-    "role": "user",
-    "content": "Thời tiết thủ đô việt nam đang như nào?"
-  },
-  {
-    "role": "assistant",
-    "content": "Thời tiết ở Hà Nội hiện tại là 30°C, nắng nhẹ."
+    "content": "Slide đã được tạo thành công với tiêu đề mới 'Better Triple than Man City'."
   }
 ]
