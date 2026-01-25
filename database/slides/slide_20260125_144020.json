@@ -1,0 +1,12 @@
+{
+  "slide_id": "slide_002",
+  "topic": "Chức Vô Địch EPL Của Leicester City",
+  "html_content": "<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Chức Vô Địch EPL Của Leicester City</title>\n    <style>\n        body {\n            margin: 0;\n            padding: 0;\n            font-family: Arial, sans-serif;\n            background-color: #f4f4f4;\n        }\n        .slide {\n            width: 1280px;\n            height: 720px;\n            background-color: #E6E6FA; /* Màu tím nhạt */\n            color: #333333;\n            display: flex;\n            flex-direction: column;\n            justify-content: center;\n            align-items: center;\n            text-align: center;\n            padding: 20px;\n            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);\n        }\n        h1 {\n            font-size: 48px;\n            margin: 0;\n            padding-bottom: 20px;\n        }\n        h2 {\n            font-size: 36px;\n            margin: 10px 0;\n        }\n        p {\n            font-size: 24px;\n            line-height: 1.5;\n            margin: 10px 0;\n        }\n        .footer {\n            margin-top: auto;\n            font-size: 18px;\n            opacity: 0.8;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"slide\">\n        <h1>Chức Vô Địch EPL Của Leicester City</h1>\n        <h2>Mùa Giải 2015-2016</h2>\n        <p>Leicester City đã tạo nên lịch sử khi giành chức vô địch Premier League lần đầu tiên trong lịch sử câu lạc bộ.</p>\n        <p>Đội bóng đã vượt qua nhiều đối thủ mạnh và kết thúc mùa giải với 81 điểm.</p>\n        <p>Huấn luyện viên Claudio Ranieri đã dẫn dắt đội bóng đến thành công không tưởng này.</p>\n        <div class=\"footer\">\"Một câu chuyện cổ tích trong bóng đá\"</div>\n    </div>\n</body>\n</html>",
+  "created_at": "2026-01-25T14:40:20.049593",
+  "last_modified": "2026-01-25T14:41:18.407559",
+  "version": 2,
+  "metadata": {
+    "user_request": "tạo slide về chức vô địch epl của leicester city",
+    "last_user_request": "sửa lại màu nền của slide thành màu tím nhạt"
+  }
+}

@@ -19,6 +19,12 @@ from config.models import RouterOutput, SlideOutput
 from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history
 from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary
 from memory_helper_functions.user_facts import _format_user_facts_for_prompt
+from memory_helper_functions.slide_storage import (
+    _load_slide_index,
+    _load_slide_file,
+    _detect_intent,
+    _save_slide_result
+)
 from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from tools.weather import get_weather
 from tools.stock import get_stock_price
@@ -195,6 +201,8 @@ class RouterWorkflow(Workflow):
         system_content += (
             "INTENT RULES:\n"
             "- If user wants slides / presentation / PPT → intent = PPTX\n"
+            "- If user wants to EDIT/MODIFY/CHANGE existing slides → intent = PPTX\n"
+            "- If user asks about slides that were created before → intent = PPTX\n"
             "- Otherwise → intent = GENERAL\n\n"
             "TOOL RULES:\n"
             "- Use tools ONLY if intent is GENERAL and information is needed\n"
@@ -326,6 +334,24 @@ class RouterWorkflow(Workflow):
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
         
+        # Load slide index
+        index = _load_slide_index()
+        
+        # Detect intent
+        try:
+            action, target_slide_id = await _detect_intent(ev.user_input, index, llm)
+        except Exception as e:
+            return StopEvent(result=error_output.model_dump())
+        
+        # Load previous slide HTML nếu EDIT
+        previous_slide_html = None
+        if target_slide_id:
+            slide_entry = next((s for s in index.slides if s.id == target_slide_id), None)
+            if slide_entry:
+                slide_data = _load_slide_file(slide_entry.file)
+                if slide_data:
+                    previous_slide_html = slide_data.html_content
+        
         # Tạo System Prompt content
         system_content = (
             "You are an expert HTML slide designer. Your task is to create a beautiful, professional HTML slide presentation.\n\n"
@@ -359,7 +385,22 @@ class RouterWorkflow(Workflow):
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text
         
-        system_content += "\n\nCreate an HTML slide based on the user's request below."
+        # Thêm previous slide HTML nếu EDIT
+        if previous_slide_html:
+            system_content += f"\n\n===== PREVIOUS SLIDE (for reference/editing) =====\n"
+            system_content += f"{previous_slide_html}\n\n"
+            system_content += (
+                "INSTRUCTIONS FOR EDITING:\n"
+                "- Keep the entire structure of the previous slide\n"
+                "- Only modify what the user requested\n"
+                "- Preserve all other elements (colors, fonts, layout) unless explicitly asked to change\n"
+                "- Maintain the same design style and quality\n\n"
+            )
+        
+        if action == "CREATE_NEW":
+            system_content += "\n\nCreate a NEW HTML slide based on the user's request below."
+        else:
+            system_content += "\n\nEDIT the slide above based on the user's request below."
         
         messages = [
             ChatMessage(
@@ -382,6 +423,18 @@ class RouterWorkflow(Workflow):
             prompt
         )
         
+        # Save slide result
+        try:
+            saved_slide_id = _save_slide_result(
+                action=action,
+                target_slide_id=target_slide_id,
+                slide_output=slide_output,
+                user_input=ev.user_input
+            )
+        except (IOError, ValueError) as e:
+            print(f"ERROR: Failed to save slide result: {e}")
+            return StopEvent(result=error_output.model_dump())
+        
         # Append answer vào memory
         if memory:
             # Append assistant message với answer
@@ -396,6 +449,8 @@ class RouterWorkflow(Workflow):
             
             # Xử lý memory truncation và summary
             await self._process_memory_and_truncate(ctx, memory)
+
+        print(messages)
         
         return StopEvent(result=slide_output.model_dump())
 

@@ -1,0 +1,16 @@
+{
+  "slides": [
+    {
+      "id": "slide_001",
+      "file": "slide_20260125_143838.json",
+      "topic": "Greatest Triple in England, better than City"
+    },
+    {
+      "id": "slide_002",
+      "file": "slide_20260125_144020.json",
+      "topic": "Chức Vô Địch EPL Của Leicester City"
+    }
+  ],
+  "active_slide_id": "slide_001",
+  "next_id_counter": 3
+}
