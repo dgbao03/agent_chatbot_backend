@@ -1,5 +1,6 @@
 import json
 import hashlib
+from typing import Union
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -8,12 +9,13 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
 from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow.events import Event
 
 # Import từ các module mới
-from config.models import RouterOutput
+from config.models import RouterOutput, SlideOutput
 from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history
 from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary
 from memory_helper_functions.user_facts import _format_user_facts_for_prompt
@@ -25,6 +27,13 @@ llm = OpenAI(model="gpt-4o-mini")
 
 class StreamResponseEvent(Event):
     content: str
+class GenerateSlideEvent(Event):
+    user_input: str
+
+error_output = RouterOutput(
+    intent="GENERAL",
+    answer="Sorry, I encountered an error processing your request. Please try again."
+)
 
 tools = [
     FunctionTool.from_defaults(
@@ -56,8 +65,100 @@ tools = [
 
 class RouterWorkflow(Workflow):
 
+    async def _process_memory_and_truncate(self, ctx: Context, memory: ChatMemoryBuffer) -> None:
+        """
+        Xử lý memory truncation và summary.
+        
+        Args:
+            ctx: Workflow context
+            memory: ChatMemoryBuffer cần xử lý
+        """
+        all_messages = memory.get_all()
+        truncated_messages_list = memory.get()
+        
+        print(f"\n===== MEMORY (BEFORE) =====\nTotal messages: {len(all_messages)}\n")
+        print(f"\n===== MEMORY (AFTER) =====\nTruncated messages count: {len(truncated_messages_list)}\n")
+        
+        # Kiểm tra truncate bằng hash của message đầu tiên
+        is_truncated = False
+        is_empty_truncated = False  # Flag: truncated_messages_list rỗng
+        
+        # Kiểm tra trường hợp đặc biệt: all_messages có nhưng truncated_messages_list rỗng
+        if all_messages and not truncated_messages_list:
+            is_truncated = True
+            is_empty_truncated = True
+        elif all_messages and truncated_messages_list:
+            # Lấy message đầu tiên từ get_all()
+            first_msg_all = all_messages[0]
+            first_content_all = first_msg_all.content if hasattr(first_msg_all, 'content') else str(first_msg_all)
+            
+            # Lấy message đầu tiên từ get()
+            first_msg_truncated = truncated_messages_list[0]
+            first_content_truncated = first_msg_truncated.content if hasattr(first_msg_truncated, 'content') else str(first_msg_truncated)
+            
+            # Tạo hash từ 20 ký tự đầu + 20 ký tự cuối
+            def create_hash(content: str) -> str:
+                if len(content) < 40:
+                    # Nếu content ngắn hơn 40 ký tự, dùng toàn bộ
+                    combined = content
+                else:
+                    combined = content[:20] + content[-20:]
+                return hashlib.md5(combined.encode('utf-8')).hexdigest()
+            
+            hash_all = create_hash(first_content_all)
+            hash_truncated = create_hash(first_content_truncated)
+            
+            # So sánh hash
+            is_truncated = (hash_all != hash_truncated)
+        
+        if is_truncated:
+            if is_empty_truncated:
+                print("\nTRUNCATE STATUS: Truncated (Empty - summary all messages)\n")
+            else:
+                print("\nTRUNCATE STATUS: Truncated\n")
+            
+            # Xử lý truncate: lấy 80% để summary, giữ lại 20% (hoặc summary toàn bộ nếu is_empty_truncated)
+            messages_to_summarize, messages_to_keep = _split_messages_for_summary(all_messages, is_empty_truncated)
+            
+            print(f"Messages to summarize: {len(messages_to_summarize)}")
+            print(f"Messages to keep: {len(messages_to_keep)}")
+            
+            # Tạo summary
+            summary_text = await _create_summary(messages_to_summarize)
+            print(f"Summary created: {summary_text[:100]}...")
+            
+            # Tạo memory mới
+            if messages_to_keep:
+                # Có messages để giữ lại: tạo memory với 20% messages
+                new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
+                for msg in messages_to_keep:
+                    new_memory.put(msg)
+                
+                # Cập nhật memory trong context
+                await ctx.store.set("chat_history", new_memory)
+                memory = new_memory
+                
+                print(f"Memory updated: {len(memory.get_all())} messages (only kept messages, no summary)\n")
+                
+                # Lưu lại chat history với memory mới
+                _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
+            else:
+                # Không có messages để giữ lại (is_empty_truncated): tạo memory rỗng
+                new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
+                await ctx.store.set("chat_history", new_memory)
+                memory = new_memory
+                
+                print(f"Memory updated: 0 messages (all messages summarized, memory cleared)\n")
+                
+                # Lưu chat history rỗng
+                _save_chat_history([])
+        else:
+            print("\nTRUNCATE STATUS: Not Truncated\n")
+            # Lưu chat history bình thường
+            _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
+
     @step
-    async def route_and_answer(self, ctx: Context, ev: StartEvent) -> StopEvent:
+    async def route_and_answer(self, ctx: Context, ev: StartEvent) -> Union[StopEvent, "GenerateSlideEvent"]:
 
         # Dùng khi chạy trực tiếp với hàm main()
         # user_input = ev.input
@@ -70,7 +171,7 @@ class RouterWorkflow(Workflow):
         chat_history = _load_chat_history()
 
         # Memory
-        memory = ChatMemoryBuffer.from_defaults(token_limit=200)
+        memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
         await ctx.store.set("chat_history", memory)
 
         for chat in chat_history:
@@ -193,8 +294,8 @@ class RouterWorkflow(Workflow):
         except Exception as e:
             # raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
             print(f"ERROR: Invalid JSON output:\n{raw_text}\nException: {e}")
-
-            return StopEvent(result="Sorry, I encountered an error processing your request. Please try again.")
+            
+            return StopEvent(result=error_output.model_dump())
 
         if output.intent == "GENERAL":
             memory.put(
@@ -203,151 +304,98 @@ class RouterWorkflow(Workflow):
                     content=output.answer
                 )
             )
-        else:
-            memory.put(
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content="This is a PPTX Generation Mission"
-                )
-            )
         
         await ctx.store.set("chat_history", memory)
 
-        all_messages = memory.get_all()
-        truncated_messages_list = memory.get()
-        
-        print(f"\n===== MEMORY (BEFORE) =====\nTotal messages: {len(all_messages)}\n")
-        print(f"\n===== MEMORY (AFTER) =====\nTruncated messages count: {len(truncated_messages_list)}\n")
-        
-        # Kiểm tra truncate bằng hash của message đầu tiên
-        is_truncated = False
-        is_empty_truncated = False  # Flag: truncated_messages_list rỗng
-        
-        # Kiểm tra trường hợp đặc biệt: all_messages có nhưng truncated_messages_list rỗng
-        if all_messages and not truncated_messages_list:
-            is_truncated = True
-            is_empty_truncated = True
-        elif all_messages and truncated_messages_list:
-            # Lấy message đầu tiên từ get_all()
-            first_msg_all = all_messages[0]
-            first_content_all = first_msg_all.content if hasattr(first_msg_all, 'content') else str(first_msg_all)
-            
-            # Lấy message đầu tiên từ get()
-            first_msg_truncated = truncated_messages_list[0]
-            first_content_truncated = first_msg_truncated.content if hasattr(first_msg_truncated, 'content') else str(first_msg_truncated)
-            
-            # Tạo hash từ 20 ký tự đầu + 20 ký tự cuối
-            def create_hash(content: str) -> str:
-                if len(content) < 40:
-                    # Nếu content ngắn hơn 40 ký tự, dùng toàn bộ
-                    combined = content
-                else:
-                    combined = content[:20] + content[-20:]
-                return hashlib.md5(combined.encode('utf-8')).hexdigest()
-            
-            hash_all = create_hash(first_content_all)
-            hash_truncated = create_hash(first_content_truncated)
-            
-            # So sánh hash
-            is_truncated = (hash_all != hash_truncated)
-        
-        if is_truncated:
-            if is_empty_truncated:
-                print("\nTRUNCATE STATUS: Truncated (Empty - summary all messages)\n")
-            else:
-                print("\nTRUNCATE STATUS: Truncated\n")
-            
-            # Xử lý truncate: lấy 80% để summary, giữ lại 20% (hoặc summary toàn bộ nếu is_empty_truncated)
-            messages_to_summarize, messages_to_keep = _split_messages_for_summary(all_messages, is_empty_truncated)
-            
-            print(f"Messages to summarize: {len(messages_to_summarize)}")
-            print(f"Messages to keep: {len(messages_to_keep)}")
-            
-            # Tạo summary
-            summary_text = await _create_summary(messages_to_summarize)
-            print(f"Summary created: {summary_text[:100]}...")
-            
-            # Tạo memory mới
-            if messages_to_keep:
-                # Có messages để giữ lại: tạo memory với 20% messages
-                new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
-                for msg in messages_to_keep:
-                    new_memory.put(msg)
-                
-                # Cập nhật memory trong context
-                await ctx.store.set("chat_history", new_memory)
-                memory = new_memory
-                
-                print(f"Memory updated: {len(memory.get_all())} messages (only kept messages, no summary)\n")
-                
-                # Lưu lại chat history với memory mới
-                _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
-            else:
-                # Không có messages để giữ lại (is_empty_truncated): tạo memory rỗng
-                new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
-                await ctx.store.set("chat_history", new_memory)
-                memory = new_memory
-                
-                print(f"Memory updated: 0 messages (all messages summarized, memory cleared)\n")
-                
-                # Lưu chat history rỗng
-                _save_chat_history([])
-        else:
-            print("\nTRUNCATE STATUS: Not Truncated\n")
-            # Lưu chat history bình thường
-            _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
-
-        # 🔀 Backend routing + STREAMING
+        # Xử lý memory truncation và summary cho GENERAL case
         if output.intent == "GENERAL":
-            answer_text = output.answer
-            
-            # Stream từng chunk (tối ưu)
-            chunk_size = 3  # Số ký tự mỗi chunk
-            for i in range(0, len(answer_text), chunk_size):
-                chunk = answer_text[i:i+chunk_size]
-                ctx.write_event_to_stream(StreamResponseEvent(content=chunk))
-                await asyncio.sleep(0.1)
-            
-            return StopEvent(result=output.answer)
+            await self._process_memory_and_truncate(ctx, memory)
+
+        # 🔀 Backend routing
+        if output.intent == "GENERAL":
+            return StopEvent(result=output.model_dump())
+        elif output.intent == "PPTX":
+            # Running Generate Slide Step (Step 2)
+            return GenerateSlideEvent(user_input=user_input)
         else:
-            return StopEvent(result="This is a PPTX Generation Mission")
-
-async def main():
-    workflow = RouterWorkflow()
-    ctx = Context(workflow)
-
-    # Khởi động workflow và lấy handler
-    handler = workflow.run(
-        input="Manchester United là đội bóng nào?",
-        ctx=ctx
-    )
+            return StopEvent(result=error_output.model_dump())
     
-    # Lắng nghe streaming events
-    print("\n=== STREAMING RESPONSE ===\n")    
-    async for event in handler.stream_events():
-        if isinstance(event, StreamResponseEvent):
-            # Print từng chunk không xuống dòng
-            print(event.content, end="", flush=True)
-        elif isinstance(event, StopEvent):
-            # Workflow kết thúc
-            print("\n\n=== WORKFLOW COMPLETED ===\n")
-    
-    # Đợi workflow hoàn thành và lấy kết quả cuối cùng
-    result1 = await handler
-    print(f"\nFinal Result: {result1}")
+    @step
+    async def generate_slide(self, ctx: Context, ev: GenerateSlideEvent) -> StopEvent:
+        # Lấy memory từ context
+        memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
+        history = memory.get() if memory else []
+        
+        # Tạo System Prompt content
+        system_content = (
+            "You are an expert HTML slide designer. Your task is to create a beautiful, professional HTML slide presentation.\n\n"
+            "REQUIREMENTS:\n"
+            "- MUST: Slide dimensions: 1280 x 720 pixels (width x height), no border radius in the corners\n"
+            "- Create a single slide only\n"
+            "- HTML must be complete and valid, ready to render in browser\n"
+            "- Use modern, clean design with good typography\n"
+            "- Make it visually appealing with appropriate colors and spacing\n"
+            "- Include CSS styles inline or in <style> tag\n"
+            "- Content should be clear, well-organized, and easy to read\n\n"
+            "GUIDELINES:\n"
+            "- Use a clean layout with proper margins and padding\n"
+            "- Choose a professional color scheme\n"
+            "- Use appropriate font sizes for headings and body text\n"
+            "- Ensure text is readable and well-contrasted\n"
+            "- Add visual elements like gradients, shadows, or borders if appropriate\n"
+            "- Keep the design simple but elegant\n\n"
+        )
+        
+        # Format history vào System Prompt nếu có
+        if history:
+            history_text = "\n===== RECENT CHAT HISTORY =====\n"
+            for msg in history:
+                history_text += f"{msg.role.value}: {msg.content}\n"
+            system_content += "\n\n" + history_text
+        
+        # Load và thêm chat summary nếu có (sau Chat History)
+        summary_data = _load_chat_summary()
+        if summary_data["version"] > 0 and summary_data["summary_content"]:
+            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
+            system_content += summary_text
+        
+        system_content += "\n\nCreate an HTML slide based on the user's request below."
+        
+        messages = [
+            ChatMessage(
+                role=MessageRole.SYSTEM,
+                content=system_content
+            )
+        ]
+        
+        user_content = f"User Request: {ev.user_input}"
+        messages.append(ChatMessage(role=MessageRole.USER, content=user_content))
+        
+        prompt_messages = [
+            (msg.role, msg.content) for msg in messages
+        ]
+        prompt = ChatPromptTemplate.from_messages(prompt_messages)
+        
+        # Call LLM với astructured_predict (async version)
+        slide_output = await llm.astructured_predict(
+            SlideOutput,
+            prompt
+        )
+        
+        # Append answer vào memory
+        if memory:
+            # Append assistant message với answer
+            memory.put(
+                ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=slide_output.answer
+                )
+            )
+            
+            await ctx.store.set("chat_history", memory)
+            
+            # Xử lý memory truncation và summary
+            await self._process_memory_and_truncate(ctx, memory)
+        
+        return StopEvent(result=slide_output.model_dump())
 
-     # chat_history
-    chat_history: ChatMemoryBuffer = await ctx.store.get("chat_history")
-    if chat_history:
-        history_messages = chat_history.get()
-        print("\n" + "="*60)
-        print("CHAT HISTORY:")
-        print("="*60)
-        for i, msg in enumerate(history_messages, 1):
-            print(f"\n[{i}] {msg.role.value}:")
-            print(f"    {msg.content}")
-        print("="*60 + "\n")
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
