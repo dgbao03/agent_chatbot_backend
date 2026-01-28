@@ -1,0 +1,24 @@
+{
+  "slide_id": "slide_001",
+  "topic": "Sự vĩ đại của Man Utd",
+  "pages": [
+    {
+      "page_number": 1,
+      "html_content": "<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Sự vĩ đại của Man Utd - Giới thiệu</title>\n    <style>\n        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }\n        .slide { width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(to right, #A50034, #D50032); color: white; text-align: center; }\n        h1 { font-size: 60px; margin: 0; }\n        p { font-size: 24px; margin: 20px 0; }\n    </style>\n</head>\n<body>\n    <div class=\"slide\">\n        <h1>Sự vĩ đại của Man Utd</h1>\n        <p>Khám phá lịch sử và thành công của câu lạc bộ bóng đá huyền thoại.</p>\n    </div>\n</body>\n</html>",
+      "page_title": "Giới thiệu về Man Utd"
+    },
+    {
+      "page_number": 2,
+      "html_content": "<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Sự vĩ đại của Man Utd - Nội dung chính</title>\n    <style>\n        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }\n        .slide { width: 1280px; height: 720px; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #F5F5F5; color: #333; text-align: center; padding: 20px; }\n        h2 { font-size: 48px; margin: 0; color: #A50034; }\n        ul { font-size: 24px; list-style-type: none; padding: 0; }\n        li { margin: 10px 0; }\n    </style>\n</head>\n<body>\n    <div class=\"slide\">\n        <h2>Những điểm nổi bật</h2>\n        <ul>\n            <li>Thành lập năm 1878</li>\n            <li>20 lần vô địch Premier League</li>\n            <li>3 lần vô địch UEFA Champions League</li>\n            <li>Huyền thoại Sir Alex Ferguson</li>\n            <li>Câu lạc bộ có lượng fan hâm mộ lớn nhất thế giới</li>\n        </ul>\n    </div>\n</body>\n</html>",
+      "page_title": "Nội dung chính về Man Utd"
+    }
+  ],
+  "total_pages": 2,
+  "created_at": "2026-01-28T14:26:27.599696",
+  "last_modified": "2026-01-28T14:26:27.599696",
+  "version": 1,
+  "metadata": {
+    "user_request": "tạo slide 2 trang về chủ đề sự vĩ đại của man utd"
+  },
+  "version_history": []
+}

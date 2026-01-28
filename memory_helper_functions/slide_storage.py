@@ -284,11 +284,12 @@ def _save_slide_result(
         slide_id = _generate_slide_id(index)
         file_name = _generate_file_name()
         
-        # Create slide data
+        # Create slide data with pages
         slide_data = SlideData(
             slide_id=slide_id,
             topic=slide_output.topic,
-            html_content=slide_output.html_slide,
+            pages=slide_output.pages,
+            total_pages=slide_output.total_pages,
             created_at=now,
             last_modified=now,
             version=1,

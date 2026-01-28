@@ -376,20 +376,32 @@ class RouterWorkflow(Workflow):
         system_content = (
             "You are an expert HTML slide designer. Your task is to create a beautiful, professional HTML slide presentation.\n\n"
             "REQUIREMENTS:\n"
-            "- MUST: Slide dimensions: 1280 x 720 pixels (width x height), no border radius in the corners\n"
-            "- Create a single slide only\n"
-            "- HTML must be complete and valid, ready to render in browser\n"
+            "- MUST: Each slide dimensions: 1280 x 720 pixels (width x height), no border radius in the corners\n"
+            "- Generate MULTIPLE slides (3-7 slides depending on topic complexity)\n"
+            "- Each HTML slide must be complete and valid, ready to render in browser\n"
             "- Use modern, clean design with good typography\n"
             "- Make it visually appealing with appropriate colors and spacing\n"
-            "- Include CSS styles inline or in <style> tag\n"
+            "- Include CSS styles inline or in <style> tag within each slide\n"
             "- Content should be clear, well-organized, and easy to read\n\n"
-            "GUIDELINES:\n"
+            "SLIDE STRUCTURE:\n"
+            "- Slide 1: Introduction/Title slide (topic overview, eye-catching design)\n"
+            "- Slides 2-N: Content slides (main points, explanations, examples)\n"
+            "- Last Slide: Conclusion/Summary (key takeaways, closing thoughts)\n"
+            "- Each slide should have a clear page_title describing its purpose\n\n"
+            "DESIGN GUIDELINES:\n"
             "- Use a clean layout with proper margins and padding\n"
-            "- Choose a professional color scheme\n"
+            "- Choose a professional color scheme consistent across all slides\n"
             "- Use appropriate font sizes for headings and body text\n"
             "- Ensure text is readable and well-contrasted\n"
             "- Add visual elements like gradients, shadows, or borders if appropriate\n"
-            "- Keep the design simple but elegant\n\n"
+            "- Keep the design simple but elegant\n"
+            "- Maintain visual consistency across all slides\n\n"
+            "OUTPUT REQUIREMENTS:\n"
+            "- You MUST return a list of PageContent objects in the 'pages' field\n"
+            "- Each PageContent must have: page_number (starting from 1), html_content (complete HTML), and page_title\n"
+            "- You MUST provide the 'total_pages' count\n"
+            "- You MUST provide a clear 'topic' for the presentation\n"
+            "- You MUST provide an 'answer' telling the user about the slide creation\n\n"
         )
         
         # Format history vào System Prompt nếu có
@@ -464,11 +476,11 @@ class RouterWorkflow(Workflow):
                     content=slide_output.answer
                 )
             )
-            
-            await ctx.store.set("chat_history", memory)
-            
-            # Xử lý memory truncation và summary
-            await self._process_memory_and_truncate(ctx, memory)
         
+        await ctx.store.set("chat_history", memory)
+
+            # Xử lý memory truncation và summary
+        await self._process_memory_and_truncate(ctx, memory)
+            
         return StopEvent(result=slide_output.model_dump())
 
