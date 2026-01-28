@@ -100,7 +100,7 @@ async def list_slide_versions(slide_id: str):
 @app.get("/api/slides/{slide_id}/versions/{version}")
 async def get_slide_version(slide_id: str, version: int):
     """
-    Lấy nội dung HTML của một version cụ thể.
+    Lấy nội dung pages của một version cụ thể.
     
     Args:
         slide_id: ID của slide (ví dụ: "slide_001")
@@ -110,15 +110,19 @@ async def get_slide_version(slide_id: str, version: int):
         {
             "slide_id": "slide_001",
             "version": 2,
-            "html_content": "<!DOCTYPE html>..."
+            "pages": [
+                {"page_number": 1, "html_content": "...", "page_title": "Intro"},
+                {"page_number": 2, "html_content": "...", "page_title": "Content"}
+            ],
+            "total_pages": 2
         }
     
     Raises:
         404: Slide hoặc version không tồn tại
     """
-    html_content = get_slide_version_content(slide_id, version)
+    version_data = get_slide_version_content(slide_id, version)
     
-    if html_content is None:
+    if version_data is None:
         raise HTTPException(
             status_code=404,
             detail=f"Version {version} not found for slide '{slide_id}'"
@@ -127,7 +131,8 @@ async def get_slide_version(slide_id: str, version: int):
     return {
         "slide_id": slide_id,
         "version": version,
-        "html_content": html_content
+        "pages": version_data["pages"],
+        "total_pages": version_data["total_pages"]
     }
 
 

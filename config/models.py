@@ -45,6 +45,10 @@ class SlideIntentOutput(BaseModel):
         default=None,
         description="ID của slide cần sửa (ví dụ: 'slide_001', 'slide_002'). Chỉ có giá trị khi action là EDIT_SPECIFIC hoặc EDIT_ACTIVE. Phải là null khi action là CREATE_NEW."
     )
+    target_page_number: Optional[int] = Field(
+        default=None,
+        description="Số thứ tự trang slide cần sửa (ví dụ: 1, 2, 3). Chỉ có giá trị khi user muốn sửa 1 trang cụ thể (ví dụ: 'sửa trang 2'). Nếu null = sửa toàn bộ presentation."
+    )
 
 
 class SlideEntry(BaseModel):

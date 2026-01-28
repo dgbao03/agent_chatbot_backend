@@ -29,7 +29,7 @@ from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from tools.weather import get_weather
 from tools.stock import get_stock_price
 
-llm = OpenAI(model="gpt-4o-mini")
+llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
 
 class StreamResponseEvent(Event):
     content: str
@@ -359,18 +359,20 @@ class RouterWorkflow(Workflow):
         
         # Detect intent
         try:
-            action, target_slide_id = await _detect_intent(ev.user_input, index, llm)
+            action, target_slide_id, target_page_number = await _detect_intent(ev.user_input, index, llm)
         except Exception as e:
             return StopEvent(result=error_output.model_dump())
         
-        # Load previous slide HTML nếu EDIT
-        previous_slide_html = None
+        # Load previous slide data nếu EDIT
+        previous_pages = None
+        total_pages = None
         if target_slide_id:
             slide_entry = next((s for s in index.slides if s.id == target_slide_id), None)
             if slide_entry:
                 slide_data = _load_slide_file(slide_entry.file)
                 if slide_data:
-                    previous_slide_html = slide_data.html_content
+                    previous_pages = slide_data.pages  # List[PageContent]
+                    total_pages = slide_data.total_pages
         
         # Tạo System Prompt content
         system_content = (
@@ -417,22 +419,48 @@ class RouterWorkflow(Workflow):
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text
         
-        # Thêm previous slide HTML nếu EDIT
-        if previous_slide_html:
-            system_content += f"\n\n===== PREVIOUS SLIDE (for reference/editing) =====\n"
-            system_content += f"{previous_slide_html}\n\n"
-            system_content += (
-                "INSTRUCTIONS FOR EDITING:\n"
-                "- Keep the entire structure of the previous slide\n"
-                "- Only modify what the user requested\n"
-                "- Preserve all other elements (colors, fonts, layout) unless explicitly asked to change\n"
-                "- Maintain the same design style and quality\n\n"
-            )
+        # Thêm previous slide pages nếu EDIT
+        if previous_pages:
+            if target_page_number is not None:
+                # EDIT SPECIFIC PAGE
+                target_page = next((p for p in previous_pages if p.page_number == target_page_number), None)
+                if target_page:
+                    system_content += f"\n\n===== PREVIOUS SLIDE - Page {target_page_number} (TARGET PAGE TO EDIT) =====\n"
+                    system_content += f"Page Title: {target_page.page_title or 'No title'}\n"
+                    system_content += f"HTML Content:\n{target_page.html_content}\n\n"
+                    system_content += (
+                        "INSTRUCTIONS FOR EDITING SPECIFIC PAGE:\n"
+                        f"- Edit ONLY Page {target_page_number}\n"
+                        "- Keep the same page_number\n"
+                        "- Modify html_content according to user request\n"
+                        "- Output should contain ONLY this page (not other pages)\n"
+                        "- Backend will merge this with other unchanged pages\n\n"
+                    )
+                else:
+                    # Page number không tồn tại, fallback to edit all
+                    target_page_number = None
+            
+            if target_page_number is None:
+                # EDIT ALL PAGES
+                system_content += f"\n\n===== PREVIOUS SLIDE - All {total_pages} Pages (for reference) =====\n"
+                for page in previous_pages:
+                    system_content += f"\n--- Page {page.page_number}: {page.page_title or 'No title'} ---\n"
+                    system_content += f"{page.html_content}\n"
+                system_content += "\n"
+                system_content += (
+                    "INSTRUCTIONS FOR EDITING ENTIRE PRESENTATION:\n"
+                    "- You can add, remove, or modify any pages\n"
+                    "- Return complete new presentation (all pages)\n"
+                    "- Maintain consistent design across all pages\n"
+                    "- Preserve good elements unless explicitly asked to change\n\n"
+                )
         
         if action == "CREATE_NEW":
-            system_content += "\n\nCreate a NEW HTML slide based on the user's request below."
+            system_content += "\n\nCreate a NEW HTML slide presentation based on the user's request below."
+        elif target_page_number is not None:
+            system_content += f"\n\nEDIT Page {target_page_number} based on the user's request below."
         else:
-            system_content += "\n\nEDIT the slide above based on the user's request below."
+            system_content += "\n\nEDIT the entire presentation based on the user's request below."
         
         messages = [
             ChatMessage(
@@ -454,6 +482,29 @@ class RouterWorkflow(Workflow):
             SlideOutput,
             prompt
         )
+        
+        # Merge logic nếu EDIT SPECIFIC PAGE
+        if target_page_number is not None and previous_pages:
+            # LLM trả về 1 page mới
+            if len(slide_output.pages) == 1:
+                new_page = slide_output.pages[0]
+                
+                # Merge vào previous_pages
+                merged_pages = []
+                for old_page in previous_pages:
+                    if old_page.page_number == target_page_number:
+                        # Replace page cũ bằng page mới
+                        merged_pages.append(new_page)
+                    else:
+                        # Giữ nguyên page cũ
+                        merged_pages.append(old_page)
+                
+                # Update slide_output với merged pages
+                slide_output.pages = merged_pages
+                slide_output.total_pages = len(merged_pages)
+                print(f"✅ Merged: Replaced page {target_page_number}, total {len(merged_pages)} pages")
+            else:
+                print(f"⚠️ LLM returned {len(slide_output.pages)} pages for EDIT_SPECIFIC_PAGE, expected 1. Using LLM output as-is.")
         
         # Save slide result
         try:

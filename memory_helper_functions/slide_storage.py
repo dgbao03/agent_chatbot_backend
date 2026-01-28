@@ -199,6 +199,22 @@ async def _detect_intent(
     - Example: "Đổi màu nền", "Add a section", "Change font"
     - target_slide_id: the currently active slide's ID
 
+    PAGE-SPECIFIC EDIT DETECTION:
+    - If user mentions a specific page number (e.g., "sửa trang 2", "edit page 3", "đổi màu trang 1"):
+      → Set target_page_number to that page number
+      → This means: Edit ONLY that specific page, keep other pages unchanged
+    - If user wants to edit entire slide or doesn't mention page number:
+      → Set target_page_number to null
+      → This means: Edit entire presentation (all pages)
+    - Examples with page numbers:
+      * "Sửa trang 2, đổi màu nền" → target_page_number: 2
+      * "Edit page 3" → target_page_number: 3
+      * "Thêm nội dung vào trang 1" → target_page_number: 1
+    - Examples without page numbers (edit all):
+      * "Thêm 2 trang nữa" → target_page_number: null (needs to regenerate all)
+      * "Sửa lại toàn bộ slide" → target_page_number: null
+      * "Đổi màu nền" (không rõ trang nào) → target_page_number: null
+
     MATCHING LOGIC:
     - For "slide [number]": Match by the order (Slide 1, Slide 2, etc.)
     - For "slide [keyword]": Search in 'topic' field (case-insensitive, partial match OK)
@@ -220,6 +236,7 @@ async def _detect_intent(
     Analyze the user request and classify:
     1. What action? (CREATE_NEW, EDIT_SPECIFIC, or EDIT_ACTIVE)
     2. Which slide? (if editing, provide the slide_id from the list above)
+    3. Which page? (if editing specific page, provide the page_number; if editing all pages or creating new, set to null)
     """
     
     try:
@@ -247,8 +264,12 @@ async def _detect_intent(
                 # LLM incorrectly provided target_slide_id for CREATE
                 print("⚠️ LLM provided target_slide_id for CREATE_NEW, ignoring")
                 result.target_slide_id = None
+            if result.target_page_number:
+                # LLM incorrectly provided target_page_number for CREATE
+                print("⚠️ LLM provided target_page_number for CREATE_NEW, ignoring")
+                result.target_page_number = None
         
-        return (result.action, result.target_slide_id)
+        return (result.action, result.target_slide_id, result.target_page_number)
         
     except Exception as e:
         print(f"❌ LLM intent detection failed: {e}")
@@ -347,7 +368,8 @@ def _save_slide_result(
         # === ARCHIVE CURRENT VERSION vào version_history ===
         current_version_entry = VersionEntry(
             version=existing_slide.version,
-            html_content=existing_slide.html_content,
+            pages=existing_slide.pages,
+            total_pages=existing_slide.total_pages,
             timestamp=existing_slide.last_modified,
             user_request=existing_slide.metadata.get("user_request", "")
         )
@@ -360,7 +382,8 @@ def _save_slide_result(
         updated_slide = SlideData(
             slide_id=existing_slide.slide_id,
             topic=slide_output.topic,  # Update topic từ LLM output
-            html_content=slide_output.html_slide,
+            pages=slide_output.pages,
+            total_pages=slide_output.total_pages,
             created_at=existing_slide.created_at,
             last_modified=now,
             version=existing_slide.version + 1,
@@ -457,16 +480,16 @@ def get_slide_versions(slide_id: str) -> Optional[list]:
         return None
 
 
-def get_slide_version_content(slide_id: str, version: int) -> Optional[str]:
+def get_slide_version_content(slide_id: str, version: int) -> Optional[dict]:
     """
-    Lấy HTML content của một version cụ thể.
+    Lấy pages content của một version cụ thể.
     
     Args:
         slide_id: ID của slide (ví dụ: "slide_001")
         version: Version number cần lấy
     
     Returns:
-        HTML content string hoặc None nếu không tìm thấy
+        Dict với {pages: [...], total_pages: N} hoặc None nếu không tìm thấy
     """
     try:
         # Load index để tìm file name
@@ -489,12 +512,18 @@ def get_slide_version_content(slide_id: str, version: int) -> Optional[str]:
         
         # Check if version is current
         if version == slide_data.version:
-            return slide_data.html_content
+            return {
+                "pages": slide_data.pages,
+                "total_pages": slide_data.total_pages
+            }
         
         # Search in version_history
         for entry in slide_data.version_history:
             if entry.version == version:
-                return entry.html_content
+                return {
+                    "pages": entry.pages,
+                    "total_pages": entry.total_pages
+                }
         
         # Version not found
         print(f"❌ Version {version} not found for slide {slide_id}")

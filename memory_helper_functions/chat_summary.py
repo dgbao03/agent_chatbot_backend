@@ -4,7 +4,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 from config.settings import CHAT_SUMMARY_FILE
 
-llm = OpenAI(model="gpt-4o-mini")
+llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
 
 def _split_messages_for_summary(messages: list, is_empty_truncated: bool = False) -> tuple[list, list]:
     """

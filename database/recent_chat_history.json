@@ -1,50 +1,26 @@
 [
   {
     "role": "user",
-    "content": "bạn biết gì về tôi?"
+    "content": "tạo slide 2 trang về chủ đề đầu tư chứng khoán"
   },
   {
     "role": "assistant",
-    "content": "Bạn tên là Bao Do và đang sống ở Hà Nội."
+    "content": "Tôi đã tạo slide thành công về chủ đề đầu tư chứng khoán."
   },
   {
     "role": "user",
-    "content": "tạo slide 3 trang về chủ đề yêu đơn phương"
+    "content": "sửa lại màu nền slide thành màu xanh biển nhạt"
   },
   {
     "role": "assistant",
-    "content": "Tôi đã tạo slide thành công về chủ đề yêu đơn phương."
+    "content": "Tôi đã tạo slide thành công với màu nền xanh biển nhạt cho chủ đề đầu tư chứng khoán."
   },
   {
     "role": "user",
-    "content": "tạo 2 slide về chủ đề yêu đơn phương"
+    "content": "thêm 1 trang nói về chiến lược đầu tư vào slide hiện tại"
   },
   {
     "role": "assistant",
-    "content": "Tôi đã tạo slide thành công về chủ đề yêu đơn phương."
-  },
-  {
-    "role": "user",
-    "content": "tạo 2 slide về chủ đề chúc là một cô nàng đáng yêu như nào"
-  },
-  {
-    "role": "assistant",
-    "content": "Tôi đã tạo slide thành công về chủ đề \"Chúc là một cô nàng đáng yêu như nào\"."
-  },
-  {
-    "role": "user",
-    "content": "tạo slide 2 trang về chủ đề sự vĩ đại của man utd"
-  },
-  {
-    "role": "assistant",
-    "content": "Tôi đã tạo slide thành công về chủ đề \"Sự vĩ đại của Man Utd\"."
-  },
-  {
-    "role": "user",
-    "content": "tạo slide về chủ đề sự xuống dốc của man utd"
-  },
-  {
-    "role": "assistant",
-    "content": "Tôi đã tạo slide thành công về chủ đề \"Sự xuống dốc của Man Utd\"."
+    "content": "Tôi đã tạo slide thành công với nội dung về chiến lược đầu tư cho chủ đề đầu tư chứng khoán."
   }
 ]

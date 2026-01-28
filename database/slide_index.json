@@ -2,15 +2,10 @@
   "slides": [
     {
       "id": "slide_001",
-      "file": "slide_20260128_142627.json",
-      "topic": "Sự vĩ đại của Man Utd"
-    },
-    {
-      "id": "slide_002",
-      "file": "slide_20260128_142716.json",
-      "topic": "Sự xuống dốc của Man Utd"
+      "file": "slide_20260128_150337.json",
+      "topic": "Đầu Tư Chứng Khoán"
     }
   ],
-  "active_slide_id": "slide_002",
-  "next_id_counter": 3
+  "active_slide_id": "slide_001",
+  "next_id_counter": 2
 }
