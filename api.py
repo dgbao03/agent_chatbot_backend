@@ -3,12 +3,18 @@ FastAPI server cho version management APIs.
 Chạy server này song song với WorkflowServer (server.py).
 
 Usage:
-    uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+    uvicorn api:app --host 0.0.0.0 --port 9000 --reload
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from memory_helper_functions.slide_storage import get_slide_versions, get_slide_version_content, _load_slide_index
+from typing import Optional
+from memory_helper_functions.presentation_storage import (
+    _get_active_presentation,
+    _get_presentation_versions,
+    _get_version_content
+)
+from config.supabase_client import get_supabase_client
 
 app = FastAPI(
     title="Slide Version API",
@@ -36,103 +42,152 @@ async def root():
     }
 
 
-@app.get("/api/slides/active")
-async def get_active_slide():
+async def verify_auth(authorization: Optional[str] = Header(None)) -> str:
     """
-    Lấy active slide_id từ slide_index.
+    Verify JWT token and return user_id.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    try:
+        supabase = get_supabase_client()
+        user_response = supabase.auth.get_user(token)
+        
+        if not user_response or not user_response.user:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        return user_response.user.id
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
+
+@app.get("/api/presentations/active")
+async def get_active_presentation_api(
+    conversation_id: str,
+    user_id: str = Depends(verify_auth)
+):
+    """
+    Get active presentation_id for a conversation.
+    
+    Args:
+        conversation_id: UUID of conversation
     
     Returns:
         {
-            "active_slide_id": "slide_001" hoặc null nếu không có
+            "active_presentation_id": "uuid" or null
         }
     """
-    index = _load_slide_index()
+    # Verify user owns conversation
+    supabase = get_supabase_client()
+    conv = supabase.from_('conversations').select('user_id').eq('id', conversation_id).execute()
+    
+    if not conv.data or conv.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    presentation_id = _get_active_presentation(conversation_id)
     return {
-        "active_slide_id": index.active_slide_id
+        "active_presentation_id": presentation_id
     }
 
 
-@app.get("/api/slides/{slide_id}/versions")
-async def list_slide_versions(slide_id: str):
+@app.get("/api/presentations/{presentation_id}/versions")
+async def list_presentation_versions(
+    presentation_id: str,
+    user_id: str = Depends(verify_auth)
+):
     """
-    Lấy danh sách tất cả versions của một slide.
+    Get all versions of a presentation.
     
     Args:
-        slide_id: ID của slide (ví dụ: "slide_001")
+        presentation_id: UUID of presentation
     
     Returns:
         {
-            "slide_id": "slide_001",
-            "versions": [
-                {
-                    "version": 1,
-                    "timestamp": "2026-01-25T14:00:00",
-                    "user_request": "Tạo slide về AI"
-                },
-                {
-                    "version": 2,
-                    "timestamp": "2026-01-25T14:30:00",
-                    "user_request": "Đổi màu nền",
-                    "is_current": true
-                }
-            ],
+            "presentation_id": "uuid",
+            "versions": [...],
             "total_versions": 2
         }
-    
-    Raises:
-        404: Slide không tồn tại
     """
-    versions = get_slide_versions(slide_id)
+    # Verify user owns presentation (via conversation)
+    supabase = get_supabase_client()
+    pres = supabase.from_('presentations').select('conversation_id').eq('id', presentation_id).execute()
+    
+    if not pres.data:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    
+    conv = supabase.from_('conversations').select('user_id').eq('id', pres.data[0]['conversation_id']).execute()
+    
+    if not conv.data or conv.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    versions = _get_presentation_versions(presentation_id)
     
     if versions is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Slide '{slide_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail="Presentation not found")
     
     return {
-        "slide_id": slide_id,
+        "presentation_id": presentation_id,
         "versions": versions,
         "total_versions": len(versions)
     }
 
 
-@app.get("/api/slides/{slide_id}/versions/{version}")
-async def get_slide_version(slide_id: str, version: int):
+@app.get("/api/presentations/{presentation_id}/versions/{version}")
+async def get_presentation_version(
+    presentation_id: str,
+    version: int,
+    user_id: str = Depends(verify_auth)
+):
     """
-    Lấy nội dung pages của một version cụ thể.
+    Get pages content of a specific version.
     
     Args:
-        slide_id: ID của slide (ví dụ: "slide_001")
-        version: Version number cần lấy
+        presentation_id: UUID of presentation
+        version: Version number
     
     Returns:
         {
-            "slide_id": "slide_001",
+            "presentation_id": "uuid",
             "version": 2,
-            "pages": [
-                {"page_number": 1, "html_content": "...", "page_title": "Intro"},
-                {"page_number": 2, "html_content": "...", "page_title": "Content"}
-            ],
-            "total_pages": 2
+            "pages": [...],
+            "total_pages": 2,
+            "html_content": "..." (pages as list)
         }
-    
-    Raises:
-        404: Slide hoặc version không tồn tại
     """
-    version_data = get_slide_version_content(slide_id, version)
+    # Verify user owns presentation
+    supabase = get_supabase_client()
+    pres = supabase.from_('presentations').select('conversation_id').eq('id', presentation_id).execute()
+    
+    if not pres.data:
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    
+    conv = supabase.from_('conversations').select('user_id').eq('id', pres.data[0]['conversation_id']).execute()
+    
+    if not conv.data or conv.data[0]['user_id'] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    version_data = _get_version_content(presentation_id, version)
     
     if version_data is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Version {version} not found for slide '{slide_id}'"
-        )
+        raise HTTPException(status_code=404, detail=f"Version {version} not found")
+    
+    # Convert PageContent objects to dicts for JSON response
+    pages_list = []
+    for page in version_data["pages"]:
+        pages_list.append({
+            "page_number": page.page_number,
+            "html_content": page.html_content,
+            "page_title": page.page_title
+        })
     
     return {
-        "slide_id": slide_id,
+        "presentation_id": presentation_id,
         "version": version,
-        "pages": version_data["pages"],
-        "total_pages": version_data["total_pages"]
+        "pages": pages_list,
+        "total_pages": version_data["total_pages"],
+        "html_content": pages_list  # For backward compatibility
     }
 
 

@@ -77,7 +77,7 @@ def update_user_fact(key: str, value: str) -> str:
         
         # Update fact
         if _upsert_user_fact(user_id, key_clean, value_clean):
-            return f"Đã cập nhật: {key_clean} = {value_clean}"
+                return f"Đã cập nhật: {key_clean} = {value_clean}"
         else:
             return "Lỗi: Không thể lưu thông tin."
                 

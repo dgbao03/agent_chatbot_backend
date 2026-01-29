@@ -34,7 +34,7 @@ def _load_chat_history(conversation_id: str) -> list:
         
         if not response.data:
             return []
-        
+
         # Convert to simple format for LlamaIndex
         messages = []
         for msg in response.data:
@@ -77,22 +77,31 @@ def _save_message(
         supabase = get_supabase_client()
         
         # Insert message
-        response = supabase.from_('messages').insert({
+        message_data = {
             'conversation_id': conversation_id,
             'role': role,
             'content': content,
             'intent': intent,
             'metadata': metadata,
             'is_in_working_memory': True  # New messages start in working memory
-        }).execute()
+        }
+        
+        print(f"💾 Inserting message: role={role}, intent={intent}, content_len={len(content)}")
+        
+        response = supabase.from_('messages').insert(message_data).execute()
         
         if response.data and len(response.data) > 0:
-            return response.data[0]['id']
-        
-        return None
+            msg_id = response.data[0]['id']
+            print(f"✅ Message saved with ID: {msg_id}")
+            return msg_id
+        else:
+            print(f"⚠️ Insert returned no data: {response}")
+            return None
         
     except Exception as e:
-        print(f"Error saving message to Supabase: {e}")
+        print(f"❌ Error saving message to Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -106,4 +115,4 @@ def _save_chat_history(history: list) -> bool:
         True (always succeeds, does nothing)
     """
     print("Warning: _save_chat_history() is deprecated. Use _save_message() instead.")
-    return True
+        return True

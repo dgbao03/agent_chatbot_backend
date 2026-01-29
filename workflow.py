@@ -19,11 +19,13 @@ from config.models import RouterOutput, SlideOutput
 from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history, _save_message
 from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary, _mark_messages_as_summarized
 from memory_helper_functions.user_facts import _format_user_facts_for_prompt
-from memory_helper_functions.slide_storage import (
-    _load_slide_index,
-    _load_slide_file,
+from memory_helper_functions.presentation_storage import (
     _detect_intent,
-    _save_slide_result
+    _create_presentation,
+    _update_presentation,
+    _load_presentation,
+    _get_active_presentation,
+    _set_active_presentation
 )
 from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from tools.weather import get_weather
@@ -408,7 +410,7 @@ class RouterWorkflow(Workflow):
         # Xử lý memory truncation và summary cho GENERAL case
         if output.intent == "GENERAL":
             await self._process_memory_and_truncate(ctx, memory)
-            
+
         # 🔀 Backend routing
         if output.intent == "GENERAL":
             return StopEvent(result=output.model_dump())
@@ -427,25 +429,22 @@ class RouterWorkflow(Workflow):
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
         
-        # Load slide index
-        index = _load_slide_index()
-        
-        # Detect intent
+        # Detect intent (now uses Supabase)
         try:
-            action, target_slide_id, target_page_number = await _detect_intent(ev.user_input, index, llm)
+            action, target_presentation_id, target_page_number = await _detect_intent(ev.user_input, conversation_id, llm)
         except Exception as e:
+            print(f"❌ Intent detection error: {e}")
             return StopEvent(result=error_output.model_dump())
+        print(f"Slide Output:\naction: {action}, target_presentation_id: {target_presentation_id}, target_page_number: {target_page_number}")
         
-        # Load previous slide data nếu EDIT
+        # Load previous presentation data nếu EDIT
         previous_pages = None
         total_pages = None
-        if target_slide_id:
-            slide_entry = next((s for s in index.slides if s.id == target_slide_id), None)
-            if slide_entry:
-                slide_data = _load_slide_file(slide_entry.file)
-                if slide_data:
-                    previous_pages = slide_data.pages  # List[PageContent]
-                    total_pages = slide_data.total_pages
+        if target_presentation_id:
+            presentation_data = _load_presentation(target_presentation_id)
+            if presentation_data:
+                previous_pages = presentation_data['pages']
+                total_pages = presentation_data['total_pages']
         
         # Tạo System Prompt content
         system_content = (
@@ -579,25 +578,83 @@ class RouterWorkflow(Workflow):
             else:
                 print(f"⚠️ LLM returned {len(slide_output.pages)} pages for EDIT_SPECIFIC_PAGE, expected 1. Using LLM output as-is.")
         
-        # Save slide result
+        # Save presentation result (to Supabase)
         try:
-            saved_slide_id = _save_slide_result(
-                action=action,
-                target_slide_id=target_slide_id,
-                slide_output=slide_output,
-                user_input=ev.user_input
+            if action == "CREATE_NEW":
+                # Create new presentation (automatically sets as active)
+                presentation_id = _create_presentation(
+                    conversation_id=conversation_id,
+                    topic=slide_output.topic,
+                    pages=slide_output.pages,
+                    total_pages=slide_output.total_pages,
+                    user_request=ev.user_input
+                )
+                if not presentation_id:
+                    raise ValueError("Failed to create presentation")
+                
+                print(f"✅ Created and set as active: {presentation_id}")
+            else:
+                # Update existing presentation
+                if not target_presentation_id:
+                    raise ValueError("target_presentation_id required for EDIT action")
+                
+                new_version = _update_presentation(
+                    presentation_id=target_presentation_id,
+                    topic=slide_output.topic,
+                    pages=slide_output.pages,
+                    total_pages=slide_output.total_pages,
+                    user_request=ev.user_input
             )
-        except (IOError, ValueError) as e:
-            print(f"ERROR: Failed to save slide result: {e}")
+                if not new_version:
+                    raise ValueError("Failed to update presentation")
+                
+                presentation_id = target_presentation_id
+                
+                # Update active_presentation_id (user is working with this presentation)
+                _set_active_presentation(conversation_id, presentation_id)
+                print(f"✅ Updated active_presentation_id: {presentation_id}")
+                
+        except (ValueError, Exception) as e:
+            print(f"❌ Failed to save presentation: {e}")
             return StopEvent(result=error_output.model_dump())
         
-        # Append answer vào memory
+        # Save assistant message to database
+        print(f"\n=== SAVING ASSISTANT MESSAGE (PPTX) ===")
+        print(f"Conversation ID: {conversation_id}")
+        print(f"Answer: {slide_output.answer[:100]}...")
+        print(f"Presentation ID: {presentation_id}")
+        
+        try:
+            assistant_msg_id = _save_message(
+                conversation_id=conversation_id,
+                role='assistant',
+                content=slide_output.answer,
+                intent='PPTX',
+                metadata={
+                    'pages': [p.model_dump() for p in slide_output.pages],
+                    'total_pages': slide_output.total_pages,
+                    'topic': slide_output.topic,
+                    'slide_id': presentation_id
+                }
+            )
+            
+            if assistant_msg_id:
+                print(f"✅ Saved assistant message: {assistant_msg_id}")
+            else:
+                print(f"❌ Failed to save assistant message (returned None)!")
+        except Exception as e:
+            print(f"❌ Exception saving assistant message: {e}")
+            assistant_msg_id = None
+        
+        print(f"========================================\n")
+        
+        # Append answer vào memory with message_id
         if memory:
-            # Append assistant message với answer
             memory.put(
                 ChatMessage(
                     role=MessageRole.ASSISTANT,
-                    content=slide_output.answer
+                    content=slide_output.answer,
+                    additional_kwargs={"message_id": assistant_msg_id}
                 )
             )
         
@@ -605,6 +662,8 @@ class RouterWorkflow(Workflow):
 
             # Xử lý memory truncation và summary
         await self._process_memory_and_truncate(ctx, memory)
+
+        print(messages)
             
         return StopEvent(result=slide_output.model_dump())
 

@@ -70,7 +70,7 @@ def _load_user_facts(user_id: str) -> list:
                 "updated_at": fact.get("updated_at")
             })
         
-        return facts
+            return facts
         
     except Exception as e:
         print(f"Error loading user facts from Supabase: {e}")
