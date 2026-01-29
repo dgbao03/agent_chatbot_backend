@@ -16,8 +16,8 @@ from llama_index.core.workflow.events import Event
 
 # Import từ các module mới
 from config.models import RouterOutput, SlideOutput
-from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history
-from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary
+from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history, _save_message
+from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary, _mark_messages_as_summarized
 from memory_helper_functions.user_facts import _format_user_facts_for_prompt
 from memory_helper_functions.slide_storage import (
     _load_slide_index,
@@ -28,6 +28,7 @@ from memory_helper_functions.slide_storage import (
 from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from tools.weather import get_weather
 from tools.stock import get_stock_price
+from config.workflow_context import set_current_user_id, get_current_user_id
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
 
@@ -99,6 +100,9 @@ class RouterWorkflow(Workflow):
             ctx: Workflow context
             memory: ChatMemoryBuffer cần xử lý
         """
+        # Get conversation_id from context
+        conversation_id = await ctx.store.get("conversation_id")
+        
         all_messages = memory.get_all()
         truncated_messages_list = memory.get()
         
@@ -150,8 +154,21 @@ class RouterWorkflow(Workflow):
             print(f"Messages to keep: {len(messages_to_keep)}")
             
             # Tạo summary
-            summary_text = await _create_summary(messages_to_summarize)
+            summary_text = await _create_summary(conversation_id, messages_to_summarize)
             print(f"Summary created: {summary_text[:100]}...")
+            
+            # Mark messages as summarized in DB (set is_in_working_memory = FALSE)
+            message_ids_to_summarize = []
+            for msg in messages_to_summarize:
+                msg_id = msg.additional_kwargs.get("message_id")
+                if msg_id:
+                    message_ids_to_summarize.append(msg_id)
+            
+            if message_ids_to_summarize:
+                _mark_messages_as_summarized(message_ids_to_summarize)
+                print(f"✅ Marked {len(message_ids_to_summarize)} messages as summarized (is_in_working_memory = FALSE)")
+            else:
+                print("⚠️ No message IDs found to mark as summarized")
             
             # Tạo memory mới
             if messages_to_keep:
@@ -166,8 +183,8 @@ class RouterWorkflow(Workflow):
                 
                 print(f"Memory updated: {len(memory.get_all())} messages (only kept messages, no summary)\n")
                 
-                # Lưu lại chat history với memory mới
-                _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
+                # Messages are now saved individually to Supabase, no need to save entire history
+                # _save_chat_history is deprecated
             else:
                 # Không có messages để giữ lại (is_empty_truncated): tạo memory rỗng
                 new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
@@ -176,12 +193,12 @@ class RouterWorkflow(Workflow):
                 
                 print(f"Memory updated: 0 messages (all messages summarized, memory cleared)\n")
                 
-                # Lưu chat history rỗng
-                _save_chat_history([])
+                # Messages are now saved individually to Supabase, no need to save entire history
+                # _save_chat_history is deprecated
         else:
             print("\nTRUNCATE STATUS: Not Truncated\n")
-            # Lưu chat history bình thường
-            _save_chat_history([{"role": msg.role.value, "content": msg.content} for msg in memory.get()])
+            # Messages are now saved individually to Supabase, no need to save entire history
+            # _save_chat_history is deprecated
 
     @step
     async def route_and_answer(self, ctx: Context, ev: StartEvent) -> Union[StopEvent, "GenerateSlideEvent"]:
@@ -189,24 +206,51 @@ class RouterWorkflow(Workflow):
         # Dùng khi chạy trực tiếp với hàm main()
         # user_input = ev.input
 
-        # Dùng khi chạy WorkflowServer
-        user_input = ev.user_input
+        # Dùng khi chạy WorkflowServer - Get params from StartEvent
+        # Access as dict since StartEvent can have dynamic fields from request body
+        user_input = ev.get("user_input")
+        conversation_id = ev.get("conversation_id")  # From frontend
+        
+        # Get user_id from context var (set by Auth middleware)
+        user_id = get_current_user_id()
+        
+        # Debug log
+        print(f"\n=== WORKFLOW DEBUG ===")
+        print(f"user_input: {user_input}")
+        print(f"user_id (from context): {user_id} (type: {type(user_id)})")
+        print(f"conversation_id: {conversation_id}")
+        print(f"======================\n")
+
+        # Validate required params
+        if not user_id or user_id == "None":
+            raise ValueError("user_id is missing or invalid. Authentication failed.")
+        if not conversation_id:
+            raise ValueError("conversation_id is required.")
+
+        # Store user_id and conversation_id in context for later use
+        await ctx.store.set("user_id", user_id)
+        await ctx.store.set("conversation_id", conversation_id)
 
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
 
-        chat_history = _load_chat_history()
+        # Load chat history for this conversation
+        chat_history = _load_chat_history(conversation_id)
 
         # Memory
-        memory = ChatMemoryBuffer.from_defaults(token_limit=3000)
+        memory = ChatMemoryBuffer.from_defaults(token_limit=200)
         await ctx.store.set("chat_history", memory)
 
         for chat in chat_history:
-            memory.put(ChatMessage(role=chat["role"], content=chat["content"]))
+            memory.put(ChatMessage(
+                role=chat["role"], 
+                content=chat["content"],
+                additional_kwargs={"message_id": chat.get("id")}  # Store ID in additional_kwargs
+            ))
 
         history = memory.get()
 
         # Load và format user facts để thêm vào System Prompt
-        user_facts_text = _format_user_facts_for_prompt()
+        user_facts_text = _format_user_facts_for_prompt(user_id)
         
         # Tạo System Prompt content
         system_content = (
@@ -250,7 +294,7 @@ class RouterWorkflow(Workflow):
             system_content += "\n\n" + history_text
         
         # Load và thêm chat summary nếu có (sau Chat History)
-        summary_data = _load_chat_summary()
+        summary_data = _load_chat_summary(conversation_id)
         if summary_data["version"] > 0 and summary_data["summary_content"]:
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text
@@ -263,7 +307,22 @@ class RouterWorkflow(Workflow):
         ]
 
         messages.append(ChatMessage(role=MessageRole.USER, content=user_input))
-        memory.put(ChatMessage(role=MessageRole.USER, content=user_input))
+        
+        # Save USER message to DB first and get ID
+        user_msg_id = _save_message(
+            conversation_id=conversation_id,
+            role='user',
+            content=user_input,
+            intent=None,
+            metadata={}
+        )
+        
+        # Put into memory with ID from DB
+        memory.put(ChatMessage(
+            role=MessageRole.USER, 
+            content=user_input,
+            additional_kwargs={"message_id": user_msg_id}
+        ))
 
         # 🔁 Tool calling loop
         while True:
@@ -326,10 +385,21 @@ class RouterWorkflow(Workflow):
             return StopEvent(result=error_output.model_dump())
 
         if output.intent == "GENERAL":
+            # Save ASSISTANT message to DB first and get ID
+            assistant_msg_id = _save_message(
+                conversation_id=conversation_id,
+                role='assistant',
+                content=output.answer,
+                intent=output.intent,
+                metadata={}
+            )
+            
+            # Put into memory with ID from DB
             memory.put(
                 ChatMessage(
                     role=MessageRole.ASSISTANT,
-                    content=output.answer
+                    content=output.answer,
+                    additional_kwargs={"message_id": assistant_msg_id}
                 )
             )
         
@@ -338,7 +408,7 @@ class RouterWorkflow(Workflow):
         # Xử lý memory truncation và summary cho GENERAL case
         if output.intent == "GENERAL":
             await self._process_memory_and_truncate(ctx, memory)
-
+            
         # 🔀 Backend routing
         if output.intent == "GENERAL":
             return StopEvent(result=output.model_dump())
@@ -350,6 +420,9 @@ class RouterWorkflow(Workflow):
     
     @step
     async def generate_slide(self, ctx: Context, ev: GenerateSlideEvent) -> StopEvent:
+        # Lấy conversation_id từ context
+        conversation_id = await ctx.store.get("conversation_id")
+        
         # Lấy memory từ context
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
@@ -414,7 +487,7 @@ class RouterWorkflow(Workflow):
             system_content += "\n\n" + history_text
         
         # Load và thêm chat summary nếu có (sau Chat History)
-        summary_data = _load_chat_summary()
+        summary_data = _load_chat_summary(conversation_id)
         if summary_data["version"] > 0 and summary_data["summary_content"]:
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text

@@ -1,10 +1,16 @@
 import asyncio
 import logging
+import json
 
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from workflows.server import WorkflowServer
 
-# Import workflow của bạn
+# Import workflow
 from workflow import RouterWorkflow
+
+# Import auth middleware
+from config.auth_middleware import AuthMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -32,10 +38,21 @@ logging.getLogger().addFilter(CancelledErrorFilter())
 
 async def main():
     """
-    Khởi tạo WorkflowServer và expose RouterWorkflow
+    Khởi tạo WorkflowServer và expose RouterWorkflow với Auth middleware
     """
-    # Tạo server
-    server = WorkflowServer()
+    # Tạo server với CORS + Auth middleware (thứ tự quan trọng: CORS trước, Auth sau)
+    server = WorkflowServer(
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://localhost:5173", "http://localhost:5174"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            ),
+            Middleware(AuthMiddleware),  # Auth middleware chạy sau CORS
+        ]
+    )
 
     # Khởi tạo workflow
     workflow = RouterWorkflow()
@@ -55,4 +72,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

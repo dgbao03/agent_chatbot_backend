@@ -1,35 +1,109 @@
-import json
-from pathlib import Path
-from config.settings import CHAT_HISTORY_FILE
+"""
+Chat history management using Supabase.
+Replaces JSON file storage with database operations.
+"""
+from typing import Optional
+from config.supabase_client import get_supabase_client
 
-def _load_chat_history() -> list:
-    """Load recent chat history từ file JSON. Trả về list rỗng nếu file không tồn tại hoặc lỗi."""
+
+def _load_chat_history(conversation_id: str) -> list:
+    """
+    Load working memory messages from Supabase for a conversation.
+    Returns list of messages in working memory, ordered by created_at.
+    
+    Args:
+        conversation_id: UUID of the conversation
+        
+    Returns:
+        List of message dicts with format:
+        [
+            {"role": "user", "content": "...", "id": "uuid"},
+            {"role": "assistant", "content": "...", "id": "uuid"},
+            ...
+        ]
+    """
     try:
-        if not CHAT_HISTORY_FILE.exists():
+        supabase = get_supabase_client()
+        
+        # Query messages in working memory for this conversation
+        response = supabase.from_('messages').select('*').eq(
+            'conversation_id', conversation_id
+        ).eq(
+            'is_in_working_memory', True
+        ).order('created_at', desc=False).execute()
+        
+        if not response.data:
             return []
-
-        with open(CHAT_HISTORY_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if not content:
-                return []
-            history = json.loads(content)
-            if not isinstance(history, list):
-                return []
-            return history
-    except (json.JSONDecodeError, IOError, Exception) as e:
-        print(f"Lỗi khi đọc recent_chat_history.json: {e}")
+        
+        # Convert to simple format for LlamaIndex
+        messages = []
+        for msg in response.data:
+            messages.append({
+                "id": msg["id"],
+                "role": msg["role"],
+                "content": msg["content"],
+                "intent": msg.get("intent"),
+                "created_at": msg["created_at"]
+            })
+        
+        return messages
+        
+    except Exception as e:
+        print(f"Error loading chat history from Supabase: {e}")
         return []
 
-def _save_chat_history(history: list) -> bool:
-    """Lưu recent chat history vào file JSON. Trả về True nếu thành công."""
-    try:
-        CHAT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        temp_file = CHAT_HISTORY_FILE.with_suffix(".tmp")
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(history, f, ensure_ascii=False, indent=2)
-        temp_file.replace(CHAT_HISTORY_FILE)
-        return True
-    except (IOError, Exception) as e:
-        print(f"Lỗi khi ghi recent_chat_history.json: {e}")
-        return False
 
+def _save_message(
+    conversation_id: str,
+    role: str,
+    content: str,
+    intent: Optional[str] = None,
+    metadata: Optional[dict] = None
+) -> Optional[str]:
+    """
+    Save a new message to Supabase.
+    
+    Args:
+        conversation_id: UUID of the conversation
+        role: 'user' or 'assistant' or 'system'
+        content: Message content
+        intent: Optional intent ('PPTX', 'GENERAL', etc.)
+        metadata: Optional metadata dict
+        
+    Returns:
+        Message ID if successful, None if failed
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Insert message
+        response = supabase.from_('messages').insert({
+            'conversation_id': conversation_id,
+            'role': role,
+            'content': content,
+            'intent': intent,
+            'metadata': metadata,
+            'is_in_working_memory': True  # New messages start in working memory
+        }).execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]['id']
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error saving message to Supabase: {e}")
+        return None
+
+
+def _save_chat_history(history: list) -> bool:
+    """
+    Legacy function for backward compatibility.
+    Now messages are saved individually with _save_message().
+    This function is kept to avoid breaking existing code but does nothing.
+    
+    Returns:
+        True (always succeeds, does nothing)
+    """
+    print("Warning: _save_chat_history() is deprecated. Use _save_message() instead.")
+    return True

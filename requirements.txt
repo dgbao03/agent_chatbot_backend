@@ -20,3 +20,6 @@ requests
 # FastAPI
 fastapi
 
+# Supabase
+supabase
+
