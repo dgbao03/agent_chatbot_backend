@@ -110,10 +110,10 @@ def _load_chat_summary(conversation_id: str) -> dict:
             return {"version": 0, "summary_content": ""}
         
         summary = response.data[0]
-            return {
-            "version": summary["version"],
-            "summary_content": summary["summary_content"]
-            }
+        return {
+        "version": summary["version"],
+        "summary_content": summary["summary_content"]
+        }
         
     except Exception as e:
         print(f"Error loading chat summary from Supabase: {e}")

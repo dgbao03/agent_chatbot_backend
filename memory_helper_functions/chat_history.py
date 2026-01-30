@@ -115,4 +115,4 @@ def _save_chat_history(history: list) -> bool:
         True (always succeeds, does nothing)
     """
     print("Warning: _save_chat_history() is deprecated. Use _save_message() instead.")
-        return True
+    return True
