@@ -315,7 +315,7 @@ class RouterWorkflow(Workflow):
         
         # Load và thêm chat summary nếu có (sau Chat History)
         summary_data = _load_chat_summary(conversation_id)
-        if summary_data["version"] > 0 and summary_data["summary_content"]:
+        if summary_data.get("summary_content"):
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text
 
@@ -428,6 +428,8 @@ class RouterWorkflow(Workflow):
         # Xử lý memory truncation và summary cho GENERAL case
         if output.intent == "GENERAL":
             await self._process_memory_and_truncate(ctx, memory)
+        
+        print(messages)
 
         # 🔀 Backend routing
         if output.intent == "GENERAL":
@@ -505,7 +507,7 @@ class RouterWorkflow(Workflow):
         
         # Load và thêm chat summary nếu có (sau Chat History)
         summary_data = _load_chat_summary(conversation_id)
-        if summary_data["version"] > 0 and summary_data["summary_content"]:
+        if summary_data.get("summary_content"):
             summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
             system_content += summary_text
         

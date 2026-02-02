@@ -90,43 +90,42 @@ def _split_messages_for_summary(messages: list, is_empty_truncated: bool = False
 
 def _load_chat_summary(conversation_id: str) -> dict:
     """
-    Load latest chat summary from Supabase for a conversation.
+    Load chat summary from Supabase for a conversation.
+    Since conversation_id is PRIMARY KEY, there's only 1 row per conversation.
     
     Args:
         conversation_id: UUID of the conversation
     
     Returns:
-        dict: {"version": int, "summary_content": str} or {"version": 0, "summary_content": ""} if none
+        dict: {"summary_content": str} or {"summary_content": ""} if none
     """
     try:
         supabase = get_supabase_client()
         
-        # Query latest summary for this conversation
-        response = supabase.from_('conversation_summaries').select('*').eq(
+        # Query summary for this conversation (conversation_id is PRIMARY KEY, only 1 row)
+        response = supabase.from_('conversation_summaries').select('summary_content').eq(
             'conversation_id', conversation_id
-        ).order('version', desc=True).limit(1).execute()
+        ).maybe_single().execute()
         
-        if not response.data or len(response.data) == 0:
-            return {"version": 0, "summary_content": ""}
+        if not response.data:
+            return {"summary_content": ""}
         
-        summary = response.data[0]
         return {
-        "version": summary["version"],
-        "summary_content": summary["summary_content"]
+            "summary_content": response.data.get("summary_content", "")
         }
         
     except Exception as e:
         print(f"Error loading chat summary from Supabase: {e}")
-        return {"version": 0, "summary_content": ""}
+        return {"summary_content": ""}
 
 
-def _save_chat_summary(conversation_id: str, version: int, summary_content: str) -> bool:
+def _save_chat_summary(conversation_id: str, summary_content: str) -> bool:
     """
-    Save chat summary to Supabase.
+    Save chat summary to Supabase using UPSERT.
+    Since conversation_id is PRIMARY KEY, this will insert or update the existing row.
     
     Args:
         conversation_id: UUID of the conversation
-        version: Version number
         summary_content: Summary content
         
     Returns:
@@ -135,12 +134,11 @@ def _save_chat_summary(conversation_id: str, version: int, summary_content: str)
     try:
         supabase = get_supabase_client()
         
-        # Insert new summary
-        response = supabase.from_('conversation_summaries').insert({
+        # UPSERT: Insert if not exists, update if exists (conversation_id is PRIMARY KEY)
+        response = supabase.from_('conversation_summaries').upsert({
             'conversation_id': conversation_id,
-            'version': version,
             'summary_content': summary_content
-        }).execute()
+        }, on_conflict='conversation_id').execute()
         
         return response.data is not None
         
@@ -182,14 +180,13 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
     try:
         # Load summary cũ
         old_summary_data = _load_chat_summary(conversation_id)
-        old_version = old_summary_data["version"]
-        old_summary = old_summary_data["summary_content"]
+        old_summary = old_summary_data.get("summary_content", "")
         
         # Format messages mới
         formatted_messages = _format_messages_for_summary(messages)
         
         # Tạo prompt cho LLM
-        if old_version == 0:
+        if not old_summary:
             # Lần đầu tiên, không có summary cũ
             system_prompt = (
                 "Bạn là một AI chuyên tạo tóm tắt cuộc hội thoại.\n"
@@ -211,7 +208,7 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
                 "- Tạo tóm tắt ngắn gọn, không lặp lại"
             )
             user_prompt = (
-                f"Tóm tắt cũ (version {old_version}):\n{old_summary}\n\n"
+                f"Tóm tắt cũ:\n{old_summary}\n\n"
                 f"Cuộc hội thoại mới:\n{formatted_messages}\n\n"
                 f"Hãy tạo tóm tắt mới kết hợp cả hai phần trên."
             )
@@ -232,11 +229,10 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
         else:
             summary_text = str(response)
         
-        # Lưu summary mới với version tăng lên
-        new_version = old_version + 1
-        _save_chat_summary(conversation_id, new_version, summary_text)
+        # Lưu summary mới (UPSERT sẽ replace summary cũ)
+        _save_chat_summary(conversation_id, summary_text)
         
-        print(f"Summary created: version {new_version} (previous: {old_version})")
+        print(f"Summary created/updated for conversation {conversation_id}")
         
         return summary_text
         

@@ -8,6 +8,8 @@ This directory contains all database migrations for the Agent Chat Application.
 - [x] **002** - 2026-02-01 - All RPC functions and triggers
 - [x] **003** - 2026-02-01 - Row Level Security policies
 - [x] **004** - 2026-02-01 - Update RPC functions (remove SECURITY DEFINER, add ownership validation)
+- [ ] **005** - 2026-03-01 - Update conversation_summaries (remove version column, conversation_id as PRIMARY KEY)
+- [ ] **006** - 2026-03-01 - Add UPDATE policy for conversation_summaries (required for upsert())
 
 ## 📊 Current Schema
 
@@ -78,10 +80,12 @@ All tables have Row Level Security (RLS) enabled. Policies ensure:
 supabase/
 ├── README.md                     
 └── migrations/
-    ├── 001_tables.sql              # All database tables
-    ├── 002_rpc_functions.sql       # All RPC functions & triggers
-    ├── 003_rls_policies.sql        # Row Level Security policies
-    └── 004_update_rpc_functions.sql # Update RPC functions (security improvements)
+    ├── 001_create_tables.sql              # All database tables
+    ├── 002_rpc_functions.sql              # All RPC functions & triggers
+    ├── 003_rls_policies.sql               # Row Level Security policies
+    ├── 004_update_rpc_functions.sql       # Update RPC functions (security improvements)
+    ├── 005_update_conversation_summaries.sql # Update conversation_summaries schema
+    └── 006_add_update_policy_summaries.sql # Add UPDATE policy for conversation_summaries
 ```
 
 ## 📋 Migration Content Details
@@ -107,3 +111,18 @@ supabase/
 - Kept SECURITY DEFINER for 2 functions: check_email_exists, archive_presentation_version
 - Added ownership validation to archive_presentation_version
 - Security improvement: RLS now automatically protects most functions
+
+### 005_update_conversation_summaries.sql
+- Cleanup: Delete old summary versions, keep only latest per conversation
+- Remove `version` column (no longer needed)
+- Remove `id` column (use conversation_id as PRIMARY KEY instead)
+- Set `conversation_id` as PRIMARY KEY (ensures 1 row per conversation)
+- Remove UNIQUE constraint on (conversation_id, version)
+- Remove index idx_summaries_conv_version
+- Result: Only latest summary is stored per conversation
+
+### 006_add_update_policy_summaries.sql
+- Add UPDATE policy for conversation_summaries table
+- Required for upsert() to work (allows updating existing rows)
+- Policy checks ownership via conversations table (same pattern as INSERT/SELECT)
+- Fixes 403 Forbidden error when updating summaries
