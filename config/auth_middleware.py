@@ -1,6 +1,7 @@
 """
 Authentication middleware for WorkflowServer.
 Verifies JWT tokens from Supabase and stores user_id in context.
+Sets JWT token in Supabase client for RLS protection.
 """
 import json
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -8,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.datastructures import Headers
 from config.supabase_client import get_supabase_client
-from config.workflow_context import set_current_user_id
+from config.workflow_context import set_current_user_id, set_current_jwt_token
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -37,9 +38,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
         token = auth_header.replace("Bearer ", "")
         
         try:
-            # Verify token with Supabase
-            supabase = get_supabase_client()
-            user_response = supabase.auth.get_user(token)
+            # Verify token with Supabase (use SERVICE_ROLE_KEY temporarily for verification only)
+            # Note: We need to verify token first, then set it to client for RLS
+            from supabase import create_client
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            # Use SERVICE_ROLE_KEY only for token verification
+            temp_supabase = create_client(
+                os.getenv("SUPABASE_URL", ""),
+                os.getenv("SUPABASE_SERVICE_KEY", "")
+            )
+            user_response = temp_supabase.auth.get_user(token)
             
             if not user_response or not user_response.user:
                 return JSONResponse(
@@ -54,12 +65,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
             print(f"✅ JWT verified - user_id: {user_id}")
             print(f"=======================\n")
             
-            # Store user_id in context var for workflow to access
+            # Store user_id and JWT token in context var for workflow to access
             set_current_user_id(user_id)
+            set_current_jwt_token(token)
+            
+            # Set JWT token in Supabase client for RLS protection
+            supabase = get_supabase_client(jwt_token=token)
             
             # Also attach to request state
             request.state.user_id = user_id
             request.state.user = user_response.user
+            request.state.jwt_token = token
             
             # Continue to next middleware/route handler
             response = await call_next(request)

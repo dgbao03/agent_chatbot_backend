@@ -31,6 +31,7 @@ from tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from tools.weather import get_weather
 from tools.stock import get_stock_price
 from config.workflow_context import set_current_user_id, get_current_user_id
+from config.supabase_client import get_supabase_client
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
 
@@ -228,6 +229,23 @@ class RouterWorkflow(Workflow):
             raise ValueError("user_id is missing or invalid. Authentication failed.")
         if not conversation_id:
             raise ValueError("conversation_id is required.")
+
+        # ✅ Validate conversation ownership (fail early before processing)
+        try:
+            supabase = get_supabase_client()
+            conversation_response = supabase.from_('conversations').select('user_id').eq('id', conversation_id).single().execute()
+            
+            if not conversation_response.data:
+                raise ValueError(f"Conversation {conversation_id} not found.")
+            
+            conversation_owner_id = conversation_response.data.get('user_id')
+            if conversation_owner_id != user_id:
+                raise ValueError(f"Access denied: You can only access your own conversations. This conversation belongs to user {conversation_owner_id}.")
+            
+            print(f"✅ Conversation ownership validated: user_id={user_id}, conversation_id={conversation_id}")
+        except Exception as e:
+            print(f"❌ Conversation ownership validation failed: {e}")
+            raise ValueError(f"Access denied: {str(e)}")
 
         # Store user_id and conversation_id in context for later use
         await ctx.store.set("user_id", user_id)
