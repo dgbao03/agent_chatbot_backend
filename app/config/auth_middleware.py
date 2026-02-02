@@ -8,8 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.datastructures import Headers
-from config.supabase_client import get_supabase_client
-from config.workflow_context import set_current_user_id, set_current_jwt_token
+from app.config.supabase_client import get_supabase_client
+from app.config.workflow_context import set_current_user_id, set_current_jwt_token
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

@@ -2,8 +2,9 @@
 User facts tools for LLM.
 These tools allow LLM to add, update, and delete user facts.
 """
-from memory_helper_functions.user_facts import _load_user_facts, _upsert_user_fact, _delete_user_fact, _find_fact_by_key
-from config.workflow_context import get_current_user_id
+from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact
+from app.utils.helpers import find_fact_by_key
+from app.config.workflow_context import get_current_user_id
 
 
 def add_user_fact(key: str, value: str) -> str:
@@ -33,7 +34,7 @@ def add_user_fact(key: str, value: str) -> str:
         value_clean = value.strip()
         
         # Upsert fact in Supabase
-        if _upsert_user_fact(user_id, key_clean, value_clean):
+        if upsert_user_fact(user_id, key_clean, value_clean):
             return f"Đã lưu: {key_clean} = {value_clean}"
         else:
             return "Lỗi: Không thể lưu thông tin."
@@ -69,14 +70,14 @@ def update_user_fact(key: str, value: str) -> str:
         value_clean = value.strip()
         
         # Check if fact exists
-        facts = _load_user_facts(user_id)
-        fact = _find_fact_by_key(facts, key_clean)
+        facts = load_user_facts(user_id)
+        fact = find_fact_by_key(facts, key_clean)
         
         if not fact:
             return f"Không tìm thấy thông tin với key: {key_clean}. Sử dụng add_user_fact để thêm mới."
         
         # Update fact
-        if _upsert_user_fact(user_id, key_clean, value_clean):
+        if upsert_user_fact(user_id, key_clean, value_clean):
                 return f"Đã cập nhật: {key_clean} = {value_clean}"
         else:
             return "Lỗi: Không thể lưu thông tin."
@@ -107,14 +108,14 @@ def delete_user_fact(key: str) -> str:
         key_clean = key.strip()
         
         # Check if fact exists
-        facts = _load_user_facts(user_id)
-        fact = _find_fact_by_key(facts, key_clean)
+        facts = load_user_facts(user_id)
+        fact = find_fact_by_key(facts, key_clean)
         
         if not fact:
             return f"Không tìm thấy thông tin với key: {key_clean}"
         
         # Delete fact
-        if _delete_user_fact(user_id, key_clean):
+        if delete_user_fact(user_id, key_clean):
             return f"Đã xóa thông tin: {key_clean}"
         else:
             return "Lỗi: Không thể xóa thông tin."

@@ -7,10 +7,10 @@ from starlette.middleware.cors import CORSMiddleware
 from workflows.server import WorkflowServer
 
 # Import workflow
-from workflow import RouterWorkflow
+from app.workflows.router_workflow import RouterWorkflow
 
 # Import auth middleware
-from config.auth_middleware import AuthMiddleware
+from app.config.auth_middleware import AuthMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

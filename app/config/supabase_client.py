@@ -5,7 +5,7 @@ Uses ANON_KEY with JWT token for RLS protection.
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from config.workflow_context import get_current_jwt_token
+from app.config.workflow_context import get_current_jwt_token
 
 load_dotenv()
 

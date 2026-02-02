@@ -1,12 +1,11 @@
 """
-Chat history management using Supabase.
-Replaces JSON file storage with database operations.
+Chat history repository - Data access layer for messages.
 """
 from typing import Optional
-from config.supabase_client import get_supabase_client
+from app.config.supabase_client import get_supabase_client
 
 
-def _load_chat_history(conversation_id: str) -> list:
+def load_chat_history(conversation_id: str) -> list:
     """
     Load working memory messages from Supabase for a conversation.
     Returns list of messages in working memory, ordered by created_at.
@@ -53,7 +52,7 @@ def _load_chat_history(conversation_id: str) -> list:
         return []
 
 
-def _save_message(
+def save_message(
     conversation_id: str,
     role: str,
     content: str,
@@ -103,3 +102,4 @@ def _save_message(
         import traceback
         traceback.print_exc()
         return None
+

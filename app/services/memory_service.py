@@ -1,17 +1,15 @@
 """
-Chat summary management using Supabase.
-Replaces JSON file storage with database operations.
+Memory service - Business logic for memory management.
 """
-from typing import Optional
-from datetime import datetime, timezone
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
-from config.supabase_client import get_supabase_client
+from app.repositories.summary_repository import load_summary, save_summary
+from app.utils.formatters import format_messages_for_summary
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
 
 
-def _split_messages_for_summary(messages: list, is_empty_truncated: bool = False) -> tuple:
+def split_messages_for_summary(messages: list, is_empty_truncated: bool = False) -> tuple:
     """
     Chia messages thành 80% (để summary) và 20% (giữ lại).
     Đảm bảo:
@@ -88,87 +86,7 @@ def _split_messages_for_summary(messages: list, is_empty_truncated: bool = False
     return messages_to_summarize, messages_to_keep
 
 
-def _load_chat_summary(conversation_id: str) -> dict:
-    """
-    Load chat summary from Supabase for a conversation.
-    Since conversation_id is PRIMARY KEY, there's only 1 row per conversation.
-    
-    Args:
-        conversation_id: UUID of the conversation
-    
-    Returns:
-        dict: {"summary_content": str} or {"summary_content": ""} if none
-    """
-    try:
-        supabase = get_supabase_client()
-        
-        # Query summary for this conversation (conversation_id is PRIMARY KEY, only 1 row)
-        # Use limit(1) instead of maybe_single() to avoid HTTP 406 Not Acceptable
-        response = supabase.from_('conversation_summaries').select('summary_content').eq(
-            'conversation_id', conversation_id
-        ).limit(1).execute()
-        
-        # Check if response has data
-        if not response.data or len(response.data) == 0:
-            return {"summary_content": ""}
-        
-        return {
-            "summary_content": response.data[0].get("summary_content", "")
-        }
-        
-    except Exception as e:
-        print(f"Error loading chat summary from Supabase: {e}")
-        return {"summary_content": ""}
-
-
-def _save_chat_summary(conversation_id: str, summary_content: str) -> bool:
-    """
-    Save chat summary to Supabase using UPSERT.
-    Since conversation_id is PRIMARY KEY, this will insert or update the existing row.
-    
-    Args:
-        conversation_id: UUID of the conversation
-        summary_content: Summary content
-        
-    Returns:
-        bool: True if successful
-    """
-    try:
-        supabase = get_supabase_client()
-        
-        # UPSERT: Insert if not exists, update if exists (conversation_id is PRIMARY KEY)
-        response = supabase.from_('conversation_summaries').upsert({
-            'conversation_id': conversation_id,
-            'summary_content': summary_content
-        }, on_conflict='conversation_id').execute()
-        
-        return response.data is not None
-        
-    except Exception as e:
-        print(f"Error saving chat summary to Supabase: {e}")
-        return False
-
-
-def _format_messages_for_summary(messages: list) -> str:
-    """
-    Format messages thành text để gửi cho LLM summary.
-    
-    Args:
-        messages: List các ChatMessage
-        
-    Returns:
-        str: Formatted text
-    """
-    formatted_lines = []
-    for i, msg in enumerate(messages, 1):
-        role = msg.role.value
-        content = msg.content if hasattr(msg, 'content') else str(msg)
-        formatted_lines.append(f"{role.capitalize()}: {content}")
-    
-    return "\n".join(formatted_lines)
-
-
-async def _create_summary(conversation_id: str, messages: list) -> str:
+async def create_summary(conversation_id: str, messages: list) -> str:
     """
     Tạo summary từ messages, kết hợp với summary cũ nếu có.
     
@@ -181,11 +99,11 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
     """
     try:
         # Load summary cũ
-        old_summary_data = _load_chat_summary(conversation_id)
+        old_summary_data = load_summary(conversation_id)
         old_summary = old_summary_data.get("summary_content", "")
         
         # Format messages mới
-        formatted_messages = _format_messages_for_summary(messages)
+        formatted_messages = format_messages_for_summary(messages)
         
         # Tạo prompt cho LLM
         if not old_summary:
@@ -232,7 +150,7 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
             summary_text = str(response)
         
         # Lưu summary mới (UPSERT sẽ replace summary cũ)
-        _save_chat_summary(conversation_id, summary_text)
+        save_summary(conversation_id, summary_text)
         
         print(f"Summary created/updated for conversation {conversation_id}")
         
@@ -245,30 +163,3 @@ async def _create_summary(conversation_id: str, messages: list) -> str:
         assistant_count = sum(1 for msg in messages if msg.role.value == "assistant")
         return f"[SUMMARY] Đã tóm tắt {user_count} lượt hỏi và {assistant_count} lượt trả lời từ cuộc hội thoại trước đó."
 
-
-def _mark_messages_as_summarized(message_ids: list[str]) -> bool:
-    """
-    Mark messages as summarized (is_in_working_memory = False).
-    
-    Args:
-        message_ids: List of message UUIDs to mark
-        
-    Returns:
-        bool: True if successful
-    """
-    try:
-        supabase = get_supabase_client()
-        
-        # Update messages with current UTC timestamp
-        response = supabase.from_('messages').update({
-            'is_in_working_memory': False,
-            'summarized_at': datetime.now(timezone.utc).isoformat()
-        }).in_('id', message_ids).execute()
-        
-        print(f"✅ DB Update: Marked {len(message_ids)} messages as is_in_working_memory=FALSE")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error marking messages as summarized: {e}")
-        return False
