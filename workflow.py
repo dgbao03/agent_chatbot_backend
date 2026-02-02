@@ -16,7 +16,7 @@ from llama_index.core.workflow.events import Event
 
 # Import từ các module mới
 from config.models import RouterOutput, SlideOutput
-from memory_helper_functions.chat_history import _load_chat_history, _save_chat_history, _save_message
+from memory_helper_functions.chat_history import _load_chat_history, _save_message
 from memory_helper_functions.chat_summary import _load_chat_summary, _create_summary, _split_messages_for_summary, _mark_messages_as_summarized
 from memory_helper_functions.user_facts import _format_user_facts_for_prompt
 from memory_helper_functions.presentation_storage import (
@@ -185,9 +185,6 @@ class RouterWorkflow(Workflow):
                 memory = new_memory
                 
                 print(f"Memory updated: {len(memory.get_all())} messages (only kept messages, no summary)\n")
-                
-                # Messages are now saved individually to Supabase, no need to save entire history
-                # _save_chat_history is deprecated
             else:
                 # Không có messages để giữ lại (is_empty_truncated): tạo memory rỗng
                 new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
@@ -195,13 +192,8 @@ class RouterWorkflow(Workflow):
                 memory = new_memory
                 
                 print(f"Memory updated: 0 messages (all messages summarized, memory cleared)\n")
-                
-                # Messages are now saved individually to Supabase, no need to save entire history
-                # _save_chat_history is deprecated
         else:
             print("\nTRUNCATE STATUS: Not Truncated\n")
-            # Messages are now saved individually to Supabase, no need to save entire history
-            # _save_chat_history is deprecated
 
     @step
     async def route_and_answer(self, ctx: Context, ev: StartEvent) -> Union[StopEvent, "GenerateSlideEvent"]:

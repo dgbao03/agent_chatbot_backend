@@ -77,19 +77,6 @@ def _load_user_facts(user_id: str) -> list:
         return []
 
 
-def _save_user_facts(facts: list) -> bool:
-    """
-    Legacy function for backward compatibility.
-    Now facts are managed with _upsert_user_fact().
-    This function is kept to avoid breaking existing code but does nothing.
-    
-    Returns:
-        True (always succeeds, does nothing)
-    """
-    print("Warning: _save_user_facts() is deprecated. Use _upsert_user_fact() instead.")
-    return True
-
-
 def _upsert_user_fact(user_id: str, key: str, value: str) -> bool:
     """
     Insert or update a user fact in Supabase.

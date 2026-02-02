@@ -103,16 +103,3 @@ def _save_message(
         import traceback
         traceback.print_exc()
         return None
-
-
-def _save_chat_history(history: list) -> bool:
-    """
-    Legacy function for backward compatibility.
-    Now messages are saved individually with _save_message().
-    This function is kept to avoid breaking existing code but does nothing.
-    
-    Returns:
-        True (always succeeds, does nothing)
-    """
-    print("Warning: _save_chat_history() is deprecated. Use _save_message() instead.")
-    return True
