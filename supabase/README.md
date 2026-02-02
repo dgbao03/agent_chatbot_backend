@@ -10,6 +10,7 @@ This directory contains all database migrations for the Agent Chat Application.
 - [x] **004** - 2026-02-01 - Update RPC functions (remove SECURITY DEFINER, add ownership validation)
 - [ ] **005** - 2026-03-01 - Update conversation_summaries (remove version column, conversation_id as PRIMARY KEY)
 - [ ] **006** - 2026-03-01 - Add UPDATE policy for conversation_summaries (required for upsert())
+- [ ] **007** - 2026-03-01 - Remove unused next_presentation_id_counter column from conversations
 
 ## 📊 Current Schema
 
@@ -85,7 +86,8 @@ supabase/
     ├── 003_rls_policies.sql               # Row Level Security policies
     ├── 004_update_rpc_functions.sql       # Update RPC functions (security improvements)
     ├── 005_update_conversation_summaries.sql # Update conversation_summaries schema
-    └── 006_add_update_policy_summaries.sql # Add UPDATE policy for conversation_summaries
+    ├── 006_add_update_policy_summaries.sql # Add UPDATE policy for conversation_summaries
+    └── 007_remove_next_presentation_id_counter.sql # Remove unused counter column
 ```
 
 ## 📋 Migration Content Details
@@ -126,3 +128,9 @@ supabase/
 - Required for upsert() to work (allows updating existing rows)
 - Policy checks ownership via conversations table (same pattern as INSERT/SELECT)
 - Fixes 403 Forbidden error when updating summaries
+
+### 007_remove_next_presentation_id_counter.sql
+- Remove unused `next_presentation_id_counter` column from conversations table
+- Legacy field from JSON storage era when presentations used counter-based IDs (slide_001, slide_002)
+- Current implementation uses UUID for presentation IDs, so counter is no longer needed
+- Cleanup: Removes unused database column

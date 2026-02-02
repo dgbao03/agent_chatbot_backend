@@ -59,10 +59,10 @@ class SlideEntry(BaseModel):
 
 
 class SlideIndex(BaseModel):
-    """Model cho slide_index.json structure"""
+    """Model cho slide_index.json structure (LEGACY - từ JSON storage era, không còn sử dụng)"""
     slides: list[SlideEntry] = Field(default_factory=list, description="Danh sách các slides")
     active_slide_id: Optional[str] = Field(default=None, description="ID của slide đang active")
-    next_id_counter: int = Field(default=1, description="Counter để generate slide ID tiếp theo")
+    # Note: next_id_counter đã được loại bỏ vì presentations hiện dùng UUID thay vì counter-based IDs
 
 
 class VersionEntry(BaseModel):
