@@ -103,15 +103,17 @@ def _load_chat_summary(conversation_id: str) -> dict:
         supabase = get_supabase_client()
         
         # Query summary for this conversation (conversation_id is PRIMARY KEY, only 1 row)
+        # Use limit(1) instead of maybe_single() to avoid HTTP 406 Not Acceptable
         response = supabase.from_('conversation_summaries').select('summary_content').eq(
             'conversation_id', conversation_id
-        ).maybe_single().execute()
+        ).limit(1).execute()
         
-        if not response.data:
+        # Check if response has data
+        if not response.data or len(response.data) == 0:
             return {"summary_content": ""}
         
         return {
-            "summary_content": response.data.get("summary_content", "")
+            "summary_content": response.data[0].get("summary_content", "")
         }
         
     except Exception as e:
