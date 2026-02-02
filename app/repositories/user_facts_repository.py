@@ -1,10 +1,21 @@
 """
 User facts repository - Data access layer for user facts.
 """
+from typing import List
 from app.config.supabase_client import get_supabase_client
+from app.config.constants import (
+    TABLE_USER_FACTS,
+    FIELD_USER_ID,
+    FIELD_KEY,
+    FIELD_VALUE,
+    FIELD_ID,
+    FIELD_CREATED_AT,
+    FIELD_UPDATED_AT
+)
+from app.config.types import UserFactDict
 
 
-def load_user_facts(user_id: str) -> list:
+def load_user_facts(user_id: str) -> List[UserFactDict]:
     """
     Load user facts from Supabase.
     
@@ -18,22 +29,22 @@ def load_user_facts(user_id: str) -> list:
         supabase = get_supabase_client()
         
         # Query user facts
-        response = supabase.from_('user_facts').select('*').eq(
-            'user_id', user_id
-        ).order('key', desc=False).execute()
+        response = supabase.from_(TABLE_USER_FACTS).select('*').eq(
+            FIELD_USER_ID, user_id
+        ).order(FIELD_KEY, desc=False).execute()
         
         if not response.data:
             return []
         
         # Convert to simple format
-        facts = []
+        facts: List[UserFactDict] = []
         for fact in response.data:
             facts.append({
-                "id": fact["id"],
-                "key": fact["key"],
-                "value": fact["value"],
-                "created_at": fact.get("created_at"),
-                "updated_at": fact.get("updated_at")
+                FIELD_ID: fact[FIELD_ID],
+                FIELD_KEY: fact[FIELD_KEY],
+                FIELD_VALUE: fact[FIELD_VALUE],
+                FIELD_CREATED_AT: fact.get(FIELD_CREATED_AT),
+                FIELD_UPDATED_AT: fact.get(FIELD_UPDATED_AT)
             })
         
         return facts
@@ -59,11 +70,11 @@ def upsert_user_fact(user_id: str, key: str, value: str) -> bool:
         supabase = get_supabase_client()
         
         # Upsert fact (insert or update based on user_id + key unique constraint)
-        response = supabase.from_('user_facts').upsert({
-            'user_id': user_id,
-            'key': key,
-            'value': value
-        }, on_conflict='user_id,key').execute()
+        response = supabase.from_(TABLE_USER_FACTS).upsert({
+            FIELD_USER_ID: user_id,
+            FIELD_KEY: key,
+            FIELD_VALUE: value
+        }, on_conflict=f'{FIELD_USER_ID},{FIELD_KEY}').execute()
         
         return response.data is not None
         
@@ -87,9 +98,9 @@ def delete_user_fact(user_id: str, key: str) -> bool:
         supabase = get_supabase_client()
         
         # Delete fact
-        response = supabase.from_('user_facts').delete().eq(
-            'user_id', user_id
-        ).eq('key', key).execute()
+        response = supabase.from_(TABLE_USER_FACTS).delete().eq(
+            FIELD_USER_ID, user_id
+        ).eq(FIELD_KEY, key).execute()
         
         return True
         

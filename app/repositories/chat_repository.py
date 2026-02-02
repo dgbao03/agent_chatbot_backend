@@ -1,11 +1,24 @@
 """
 Chat history repository - Data access layer for messages.
 """
-from typing import Optional
+from typing import Optional, List
 from app.config.supabase_client import get_supabase_client
+from app.config.constants import (
+    TABLE_MESSAGES,
+    FIELD_CONVERSATION_ID,
+    FIELD_IS_IN_WORKING_MEMORY,
+    FIELD_CREATED_AT,
+    FIELD_ID,
+    FIELD_ROLE,
+    FIELD_CONTENT,
+    FIELD_INTENT,
+    FIELD_METADATA,
+    DEFAULT_IS_IN_WORKING_MEMORY
+)
+from app.config.types import MessageDict
 
 
-def load_chat_history(conversation_id: str) -> list:
+def load_chat_history(conversation_id: str) -> List[MessageDict]:
     """
     Load working memory messages from Supabase for a conversation.
     Returns list of messages in working memory, ordered by created_at.
@@ -25,24 +38,24 @@ def load_chat_history(conversation_id: str) -> list:
         supabase = get_supabase_client()
         
         # Query messages in working memory for this conversation
-        response = supabase.from_('messages').select('*').eq(
-            'conversation_id', conversation_id
+        response = supabase.from_(TABLE_MESSAGES).select('*').eq(
+            FIELD_CONVERSATION_ID, conversation_id
         ).eq(
-            'is_in_working_memory', True
-        ).order('created_at', desc=False).execute()
+            FIELD_IS_IN_WORKING_MEMORY, True
+        ).order(FIELD_CREATED_AT, desc=False).execute()
         
         if not response.data:
             return []
 
         # Convert to simple format for LlamaIndex
-        messages = []
+        messages: List[MessageDict] = []
         for msg in response.data:
             messages.append({
-                "id": msg["id"],
-                "role": msg["role"],
-                "content": msg["content"],
-                "intent": msg.get("intent"),
-                "created_at": msg["created_at"]
+                FIELD_ID: msg[FIELD_ID],
+                FIELD_ROLE: msg[FIELD_ROLE],
+                FIELD_CONTENT: msg[FIELD_CONTENT],
+                FIELD_INTENT: msg.get(FIELD_INTENT),
+                FIELD_CREATED_AT: msg[FIELD_CREATED_AT]
             })
         
         return messages
@@ -77,20 +90,20 @@ def save_message(
         
         # Insert message
         message_data = {
-            'conversation_id': conversation_id,
-            'role': role,
-            'content': content,
-            'intent': intent,
-            'metadata': metadata,
-            'is_in_working_memory': True  # New messages start in working memory
+            FIELD_CONVERSATION_ID: conversation_id,
+            FIELD_ROLE: role,
+            FIELD_CONTENT: content,
+            FIELD_INTENT: intent,
+            FIELD_METADATA: metadata,
+            FIELD_IS_IN_WORKING_MEMORY: DEFAULT_IS_IN_WORKING_MEMORY  # New messages start in working memory
         }
         
         print(f"💾 Inserting message: role={role}, intent={intent}, content_len={len(content)}")
         
-        response = supabase.from_('messages').insert(message_data).execute()
+        response = supabase.from_(TABLE_MESSAGES).insert(message_data).execute()
         
         if response.data and len(response.data) > 0:
-            msg_id = response.data[0]['id']
+            msg_id = response.data[0][FIELD_ID]
             print(f"✅ Message saved with ID: {msg_id}")
             return msg_id
         else:

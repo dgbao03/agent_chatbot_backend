@@ -13,6 +13,13 @@ from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow.events import Event
 
 from app.config.models import RouterOutput
+from app.config.constants import (
+    ROLE_USER,
+    ROLE_ASSISTANT,
+    INTENT_GENERAL,
+    INTENT_PPTX,
+    FIELD_SUMMARY_CONTENT
+)
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
 from app.utils.formatters import format_user_facts_for_prompt
@@ -32,7 +39,7 @@ class GenerateSlideEvent(Event):
     user_input: str
 
 error_output = RouterOutput(
-    intent="GENERAL",
+    intent=INTENT_GENERAL,
     answer="Sorry, I encountered an error processing your request. Please try again."
 )
 
@@ -187,8 +194,8 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         
         # Load và thêm chat summary nếu có (sau Chat History)
         summary_data = load_summary(conversation_id)
-        if summary_data.get("summary_content"):
-            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
+        if summary_data.get(FIELD_SUMMARY_CONTENT):
+            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data[FIELD_SUMMARY_CONTENT]}"
             system_content += summary_text
 
         messages = [
@@ -203,7 +210,7 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         # Save USER message to DB first and get ID
         user_msg_id = save_message(
             conversation_id=conversation_id,
-            role='user',
+            role=ROLE_USER,
             content=user_input,
             intent=None,
             metadata={}
@@ -276,11 +283,11 @@ class RouterWorkflow(Workflow, SlideWorkflow):
             
             return StopEvent(result=error_output.model_dump())
 
-        if output.intent == "GENERAL":
+        if output.intent == INTENT_GENERAL:
             # Save ASSISTANT message to DB first and get ID
             assistant_msg_id = save_message(
                 conversation_id=conversation_id,
-                role='assistant',
+                role=ROLE_ASSISTANT,
                 content=output.answer,
                 intent=output.intent,
                 metadata={}
@@ -298,15 +305,15 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         await ctx.store.set("chat_history", memory)
 
         # Xử lý memory truncation và summary cho GENERAL case
-        if output.intent == "GENERAL":
+        if output.intent == INTENT_GENERAL:
             await process_memory_truncation(ctx, memory)
         
         print(messages)
 
         # 🔀 Backend routing
-        if output.intent == "GENERAL":
+        if output.intent == INTENT_GENERAL:
             return StopEvent(result=output.model_dump())
-        elif output.intent == "PPTX":
+        elif output.intent == INTENT_PPTX:
             # Running Generate Slide Step (Step 2)
             return GenerateSlideEvent(user_input=user_input)
         else:

@@ -3,6 +3,11 @@ Presentation service - Business logic for presentation management.
 """
 from typing import Optional, Tuple
 from llama_index.core.prompts import ChatPromptTemplate
+from app.config.constants import (
+    FIELD_ID,
+    FIELD_TOPIC,
+    FIELD_TOTAL_PAGES
+)
 from app.config.models import SlideIntentOutput
 from app.repositories.presentation_repository import (
     list_presentations,
@@ -38,11 +43,11 @@ async def detect_presentation_intent(
         else:
             context = "===== AVAILABLE PRESENTATIONS =====\n\n"
             for i, pres in enumerate(presentations, 1):
-                is_active = " (ACTIVE)" if pres['id'] == active_id else ""
+                is_active = " (ACTIVE)" if pres[FIELD_ID] == active_id else ""
                 context += f"Presentation {i}{is_active}:\n"
-                context += f"  - ID: {pres['id']}\n"
-                context += f"  - Topic: {pres['topic']}\n"
-                context += f"  - Pages: {pres['total_pages']}\n\n"
+                context += f"  - ID: {pres[FIELD_ID]}\n"
+                context += f"  - Topic: {pres[FIELD_TOPIC]}\n"
+                context += f"  - Pages: {pres[FIELD_TOTAL_PAGES]}\n\n"
             
             if active_id:
                 context += f"Currently active: {active_id}\n"

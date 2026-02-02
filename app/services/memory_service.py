@@ -3,6 +3,11 @@ Memory service - Business logic for memory management.
 """
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
+from app.config.constants import (
+    ROLE_USER,
+    ROLE_ASSISTANT,
+    FIELD_SUMMARY_CONTENT
+)
 from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
 
@@ -38,7 +43,7 @@ def split_messages_for_summary(messages: list, is_empty_truncated: bool = False)
     # Tìm user message cuối cùng trong toàn bộ messages
     last_user_idx = -1
     for i in range(total_count - 1, -1, -1):
-        if messages[i].role.value == "user":
+        if messages[i].role.value == ROLE_USER:
             last_user_idx = i
             break
     
@@ -56,7 +61,7 @@ def split_messages_for_summary(messages: list, is_empty_truncated: bool = False)
     valid_pairs = 0
     i = keep_start_idx
     while i < total_count - 1:
-        if messages[i].role.value == "user" and messages[i+1].role.value == "assistant":
+        if messages[i].role.value == ROLE_USER and messages[i+1].role.value == ROLE_ASSISTANT:
             valid_pairs += 1
             i += 2
         else:
@@ -66,7 +71,7 @@ def split_messages_for_summary(messages: list, is_empty_truncated: bool = False)
     if valid_pairs * 2 < target_keep_count:
         # Tìm ngược lại từ keep_start_idx - 1
         for i in range(keep_start_idx - 1, -1, -1):
-            if i + 1 < total_count and messages[i].role.value == "user" and messages[i+1].role.value == "assistant":
+            if i + 1 < total_count and messages[i].role.value == ROLE_USER and messages[i+1].role.value == ROLE_ASSISTANT:
                 keep_start_idx = i
                 valid_pairs += 1
                 if valid_pairs * 2 >= target_keep_count:
@@ -100,7 +105,7 @@ async def create_summary(conversation_id: str, messages: list) -> str:
     try:
         # Load summary cũ
         old_summary_data = load_summary(conversation_id)
-        old_summary = old_summary_data.get("summary_content", "")
+        old_summary = old_summary_data.get(FIELD_SUMMARY_CONTENT, "")
         
         # Format messages mới
         formatted_messages = format_messages_for_summary(messages)
@@ -159,7 +164,7 @@ async def create_summary(conversation_id: str, messages: list) -> str:
     except Exception as e:
         print(f"Lỗi khi tạo summary: {e}")
         # Fallback: trả về summary đơn giản
-        user_count = sum(1 for msg in messages if msg.role.value == "user")
-        assistant_count = sum(1 for msg in messages if msg.role.value == "assistant")
+        user_count = sum(1 for msg in messages if msg.role.value == ROLE_USER)
+        assistant_count = sum(1 for msg in messages if msg.role.value == ROLE_ASSISTANT)
         return f"[SUMMARY] Đã tóm tắt {user_count} lượt hỏi và {assistant_count} lượt trả lời từ cuộc hội thoại trước đó."
 

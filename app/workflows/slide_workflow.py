@@ -9,6 +9,16 @@ from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
 
 from app.config.models import SlideOutput, RouterOutput
+from app.config.constants import (
+    ROLE_ASSISTANT,
+    INTENT_PPTX,
+    INTENT_GENERAL,
+    FIELD_SUMMARY_CONTENT,
+    METADATA_KEY_PAGES,
+    METADATA_KEY_TOTAL_PAGES,
+    METADATA_KEY_TOPIC,
+    METADATA_KEY_SLIDE_ID
+)
 from app.services.presentation_service import detect_presentation_intent
 from app.repositories.presentation_repository import (
     load_presentation,
@@ -23,7 +33,7 @@ from app.workflows.memory_manager import process_memory_truncation
 from app.workflows.router_workflow import GenerateSlideEvent
 
 error_output = RouterOutput(
-    intent="GENERAL",
+    intent=INTENT_GENERAL,
     answer="Sorry, I encountered an error processing your request. Please try again."
 )
 
@@ -56,8 +66,8 @@ class SlideWorkflow:
         if target_presentation_id:
             presentation_data = load_presentation(target_presentation_id)
             if presentation_data:
-                previous_pages = presentation_data['pages']
-                total_pages = presentation_data['total_pages']
+                previous_pages = presentation_data.get('pages')
+                total_pages = presentation_data.get('total_pages')
         
         # Tạo System Prompt content
         system_content = (
@@ -100,8 +110,8 @@ class SlideWorkflow:
         
         # Load và thêm chat summary nếu có (sau Chat History)
         summary_data = load_summary(conversation_id)
-        if summary_data.get("summary_content"):
-            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data['summary_content']}"
+        if summary_data.get(FIELD_SUMMARY_CONTENT):
+            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data[FIELD_SUMMARY_CONTENT]}"
             system_content += summary_text
         
         # Thêm previous slide pages nếu EDIT
@@ -240,14 +250,14 @@ class SlideWorkflow:
         try:
             assistant_msg_id = save_message(
                 conversation_id=conversation_id,
-                role='assistant',
+                role=ROLE_ASSISTANT,
                 content=slide_output.answer,
-                intent='PPTX',
+                intent=INTENT_PPTX,
                 metadata={
-                    'pages': [p.model_dump() for p in slide_output.pages],
-                    'total_pages': slide_output.total_pages,
-                    'topic': slide_output.topic,
-                    'slide_id': presentation_id
+                    METADATA_KEY_PAGES: [p.model_dump() for p in slide_output.pages],
+                    METADATA_KEY_TOTAL_PAGES: slide_output.total_pages,
+                    METADATA_KEY_TOPIC: slide_output.topic,
+                    METADATA_KEY_SLIDE_ID: presentation_id
                 }
             )
             

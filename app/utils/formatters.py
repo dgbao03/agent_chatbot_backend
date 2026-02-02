@@ -2,6 +2,10 @@
 Format functions for converting data to text formats.
 """
 from app.repositories.user_facts_repository import load_user_facts
+from app.config.constants import (
+    FIELD_KEY,
+    FIELD_VALUE
+)
 
 
 def format_user_facts_for_prompt(user_id: str) -> str:
@@ -21,8 +25,8 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         
         formatted_lines = ["USER FACTS (Thông tin về người dùng):"]
         for fact in facts:
-            key = fact.get("key", "")
-            value = fact.get("value", "")
+            key = fact.get(FIELD_KEY, "")
+            value = fact.get(FIELD_VALUE, "")
             if key and value:
                 formatted_lines.append(f"- {key}: {value}")
         
