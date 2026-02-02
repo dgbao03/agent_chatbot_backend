@@ -4,7 +4,7 @@ These tools allow LLM to add, update, and delete user facts.
 """
 from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact
 from app.utils.helpers import find_fact_by_key
-from app.config.workflow_context import get_current_user_id
+from app.auth.context import get_current_user_id
 
 
 def add_user_fact(key: str, value: str) -> str:

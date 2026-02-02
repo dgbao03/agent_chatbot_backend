@@ -2,7 +2,7 @@
 Presentation repository - Data access layer for presentations.
 """
 from typing import Optional, List
-from app.config.supabase_client import get_supabase_client
+from app.database.client import get_supabase_client
 from app.config.models import PageContent
 from app.config.constants import (
     TABLE_PRESENTATIONS,

@@ -2,7 +2,7 @@
 Summary repository - Data access layer for conversation summaries.
 """
 from datetime import datetime, timezone
-from app.config.supabase_client import get_supabase_client
+from app.database.client import get_supabase_client
 from app.config.constants import (
     TABLE_CONVERSATION_SUMMARIES,
     TABLE_MESSAGES,

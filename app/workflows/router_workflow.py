@@ -26,7 +26,7 @@ from app.utils.formatters import format_user_facts_for_prompt
 from app.tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from app.tools.weather import get_weather
 from app.tools.stock import get_stock_price
-from app.config.workflow_context import get_current_user_id
+from app.auth.context import get_current_user_id
 from app.services.chat_service import validate_conversation_access
 from app.workflows.memory_manager import process_memory_truncation
 

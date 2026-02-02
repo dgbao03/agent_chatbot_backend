@@ -10,7 +10,7 @@ from workflows.server import WorkflowServer
 from app.workflows.router_workflow import RouterWorkflow
 
 # Import auth middleware
-from app.config.auth_middleware import AuthMiddleware
+from app.auth.middleware import AuthMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

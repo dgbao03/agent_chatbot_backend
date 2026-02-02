@@ -1,7 +1,7 @@
 """
 Chat service - Business logic for chat orchestration.
 """
-from app.config.supabase_client import get_supabase_client
+from app.database.client import get_supabase_client
 from app.config.constants import (
     TABLE_CONVERSATIONS,
     FIELD_ID,

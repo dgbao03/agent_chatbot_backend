@@ -2,7 +2,7 @@
 Chat history repository - Data access layer for messages.
 """
 from typing import Optional, List
-from app.config.supabase_client import get_supabase_client
+from app.database.client import get_supabase_client
 from app.config.constants import (
     TABLE_MESSAGES,
     FIELD_CONVERSATION_ID,

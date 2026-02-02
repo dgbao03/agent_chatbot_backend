@@ -8,12 +8,16 @@ Backend hệ thống chat AI với khả năng tạo và quản lý presentation
 agent_chat_backend_v2/
 ├── app/                          # Application code chính
 │   ├── config/                   # Cấu hình và constants
-│   │   ├── auth_middleware.py    # JWT authentication middleware
 │   │   ├── constants.py          # Magic strings và constants tập trung
 │   │   ├── models.py             # Pydantic models cho LLM structured output
-│   │   ├── supabase_client.py    # Supabase client initialization
-│   │   ├── types.py              # TypedDict cho shared data structures
-│   │   └── workflow_context.py  # ContextVar cho user_id và JWT token
+│   │   └── types.py              # TypedDict cho shared data structures
+│   │
+│   ├── auth/                     # Authentication-related code
+│   │   ├── middleware.py         # JWT authentication middleware
+│   │   └── context.py            # ContextVar cho user_id và JWT token
+│   │
+│   ├── database/                 # Database client
+│   │   └── client.py             # Supabase client initialization
 │   │
 │   ├── repositories/             # Data access layer (DAL)
 │   │   ├── chat_repository.py   # CRUD operations cho messages
@@ -60,29 +64,33 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 - **constants.py**: Tập trung tất cả magic strings (roles, intents, field names, table names, RPC functions)
 - **types.py**: TypedDict definitions cho shared data structures
 - **models.py**: Pydantic models cho LLM structured output
-- **supabase_client.py**: Khởi tạo Supabase client với JWT token handling
-- **auth_middleware.py**: JWT authentication middleware cho WorkflowServer
-- **workflow_context.py**: ContextVar để truyền user_id và JWT token qua async calls
 
-### 2. **Repository Layer** (`app/repositories/`)
+### 2. **Auth Layer** (`app/auth/`)
+- **middleware.py**: JWT authentication middleware cho WorkflowServer
+- **context.py**: ContextVar để truyền user_id và JWT token qua async calls
+
+### 3. **Database Layer** (`app/database/`)
+- **client.py**: Khởi tạo Supabase client với JWT token handling cho RLS protection
+
+### 4. **Repository Layer** (`app/repositories/`)
 - **Trách nhiệm**: Data access layer - chỉ tương tác với database
 - **Pattern**: Mỗi repository chứa các hàm CRUD cho một domain entity
 - **Sử dụng**: Constants từ `config/constants.py` và types từ `config/types.py`
 - **Không chứa**: Business logic, chỉ có data access
 
-### 3. **Service Layer** (`app/services/`)
+### 5. **Service Layer** (`app/services/`)
 - **Trách nhiệm**: Business logic layer - xử lý logic nghiệp vụ
 - **Ví dụ**:
   - `chat_service.py`: Validate conversation ownership
   - `memory_service.py`: Split messages cho summary, tạo summary với LLM
   - `presentation_service.py`: Detect presentation intent (CREATE_NEW, EDIT_SPECIFIC, EDIT_ACTIVE)
 
-### 4. **Tools Layer** (`app/tools/`)
+### 6. **Tools Layer** (`app/tools/`)
 - **Trách nhiệm**: LLM function calling tools
 - **Sử dụng**: Repositories để lưu/đọc data, services cho business logic
 - **Ví dụ**: `add_user_fact`, `get_weather`, `get_stock_price`
 
-### 5. **Workflow Layer** (`app/workflows/`)
+### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
 - **RouterWorkflow**: Main workflow xử lý routing và answering
 - **SlideWorkflow**: Workflow xử lý slide generation và editing
@@ -209,13 +217,13 @@ memory_manager.process_memory_truncation()
 ```
 1. Frontend gửi JWT token trong Authorization header
     ↓
-2. AuthMiddleware verify token
+2. auth.middleware.AuthMiddleware verify token
     ├─ Extract user_id từ JWT
-    ├─ Store user_id và JWT trong ContextVar
-    └─ Set JWT trong Supabase client cho RLS
+    ├─ Store user_id và JWT trong ContextVar (auth.context)
+    └─ Set JWT trong Supabase client cho RLS (database.client)
     ↓
 3. Workflow access user_id
-    └─ get_current_user_id() từ ContextVar
+    └─ auth.context.get_current_user_id() từ ContextVar
 ```
 
 ### Row Level Security (RLS)

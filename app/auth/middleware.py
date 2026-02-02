@@ -8,8 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.datastructures import Headers
-from app.config.supabase_client import get_supabase_client
-from app.config.workflow_context import set_current_user_id, set_current_jwt_token
+from app.database.client import get_supabase_client
+from app.auth.context import set_current_user_id, set_current_jwt_token
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -87,3 +87,4 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"error": f"Authentication failed: {str(e)}"}
             )
+
