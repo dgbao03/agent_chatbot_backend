@@ -7,6 +7,7 @@ This directory contains all database migrations for the Agent Chat Application.
 - [x] **001** - 2026-01-15 - All database tables (core + presentations)
 - [x] **002** - 2026-02-01 - All RPC functions and triggers
 - [x] **003** - 2026-02-01 - Row Level Security policies
+- [x] **004** - 2026-02-01 - Update RPC functions (remove SECURITY DEFINER, add ownership validation)
 
 ## 📊 Current Schema
 
@@ -45,7 +46,10 @@ This directory contains all database migrations for the Agent Chat Application.
 All tables have Row Level Security (RLS) enabled. Policies ensure:
 - Users can only access their own data
 - Conversations, messages, and presentations are isolated by user
-- Service role key required for backend operations
+- Most RPC functions use RLS (no SECURITY DEFINER)
+- Only 2 functions use SECURITY DEFINER:
+  - `check_email_exists` - Access auth.users (restricted resource)
+  - `archive_presentation_version` - Complex operation with ownership validation
 
 ## 📝 How to Apply New Migration
 
@@ -64,7 +68,8 @@ All tables have Row Level Security (RLS) enabled. Policies ensure:
 - All IDs use UUID (gen_random_uuid())
 - Timestamps use TIMESTAMPTZ with NOW() defaults
 - Foreign keys have CASCADE or SET NULL deletion policies
-- All functions use SECURITY DEFINER for RLS bypass
+- Most RPC functions use RLS (no SECURITY DEFINER) for automatic security
+- Only 2 functions use SECURITY DEFINER (with ownership validation where needed)
 - Migrations are already applied to production ✅
 
 ## 📂 Directory Structure
@@ -75,7 +80,8 @@ supabase/
 └── migrations/
     ├── 001_tables.sql              # All database tables
     ├── 002_rpc_functions.sql       # All RPC functions & triggers
-    └── 003_rls_policies.sql        # Row Level Security policies
+    ├── 003_rls_policies.sql        # Row Level Security policies
+    └── 004_update_rpc_functions.sql # Update RPC functions (security improvements)
 ```
 
 ## 📋 Migration Content Details
@@ -95,3 +101,9 @@ supabase/
 - RLS policies for core tables (conversations, messages, summaries, user_facts)
 - RLS policies for presentation tables (presentations, pages, versions, version_pages)
 - User data isolation and access control
+
+### 004_update_rpc_functions.sql
+- Removed SECURITY DEFINER from 7 RPC functions (now use RLS)
+- Kept SECURITY DEFINER for 2 functions: check_email_exists, archive_presentation_version
+- Added ownership validation to archive_presentation_version
+- Security improvement: RLS now automatically protects most functions
