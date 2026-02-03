@@ -2,7 +2,7 @@
 Router workflow - Main workflow for routing and answering user queries.
 """
 import json
-from typing import Union
+from typing import Union, Optional
 from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
 from llama_index.core.workflow.events import StartEvent, StopEvent
@@ -22,7 +22,9 @@ from app.config.constants import (
 )
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
+from app.repositories.conversation_repository import create_new_conversation, update_conversation_title
 from app.utils.formatters import format_user_facts_for_prompt
+from app.utils.title_generator import generate_conversation_title
 from app.tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from app.tools.weather import get_weather
 from app.tools.stock import get_stock_price
@@ -37,6 +39,8 @@ class StreamResponseEvent(Event):
 
 class GenerateSlideEvent(Event):
     user_input: str
+    new_conversation_id: Optional[str] = None
+    new_conversation_title: Optional[str] = None
 
 error_output = RouterOutput(
     intent=INTENT_GENERAL,
@@ -120,11 +124,37 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         # Validate required params
         if not user_id or user_id == "None":
             raise ValueError("user_id is missing or invalid. Authentication failed.")
-        if not conversation_id:
-            raise ValueError("conversation_id is required.")
-
-        # ✅ Validate conversation ownership (fail early before processing)
-        validate_conversation_access(user_id, conversation_id)
+        
+        # Variables to track new conversation (if created)
+        new_conv_id: Optional[str] = None
+        new_conv_title: Optional[str] = None
+        
+        # Check if conversation_id is null/empty (new conversation)
+        is_new_conversation = not conversation_id or conversation_id == "null" or conversation_id == ""
+        
+        if is_new_conversation:
+            # Create new conversation
+            print(f"🆕 Creating new conversation for user: {user_id}")
+            conversation_id = create_new_conversation(user_id)
+            new_conv_id = conversation_id
+            
+            # Generate title from user input
+            try:
+                title = generate_conversation_title(user_input)
+                update_conversation_title(conversation_id, title)
+                new_conv_title = title
+                print(f"✅ Generated title: {title}")
+            except Exception as e:
+                # Fallback: use truncated user input
+                title = user_input[:60].strip()
+                if len(user_input) > 60:
+                    title += "..."
+                update_conversation_title(conversation_id, title)
+                new_conv_title = title
+                print(f"⚠️ Title generation failed, using fallback: {title}")
+        else:
+            # ✅ Validate conversation ownership (fail early before processing)
+            validate_conversation_access(user_id, conversation_id)
 
         # Store user_id and conversation_id in context for later use
         await ctx.store.set("user_id", user_id)
@@ -310,12 +340,25 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         
         print(messages)
 
+        # Prepare result
+        result = output.model_dump()
+        
+        # Add conversation_id and title if new conversation was created
+        if new_conv_id:
+            result["conversation_id"] = new_conv_id
+            result["title"] = new_conv_title
+            print(f"📤 Returning new conversation_id: {new_conv_id}, title: {new_conv_title}")
+
         # 🔀 Backend routing
         if output.intent == INTENT_GENERAL:
-            return StopEvent(result=output.model_dump())
+            return StopEvent(result=result)
         elif output.intent == INTENT_PPTX:
             # Running Generate Slide Step (Step 2)
-            return GenerateSlideEvent(user_input=user_input)
+            return GenerateSlideEvent(
+                user_input=user_input,
+                new_conversation_id=new_conv_id,
+                new_conversation_title=new_conv_title
+            )
         else:
             return StopEvent(result=error_output.model_dump())
 

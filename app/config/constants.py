@@ -30,6 +30,9 @@ FIELD_METADATA = "metadata"
 FIELD_CREATED_AT = "created_at"
 FIELD_ID = "id"
 
+# Conversations
+FIELD_TITLE = "title"
+
 # Summaries
 FIELD_SUMMARY_CONTENT = "summary_content"
 

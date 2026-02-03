@@ -287,6 +287,18 @@ class SlideWorkflow:
         await process_memory_truncation(ctx, memory)
 
         print(messages)
+        
+        # Prepare result
+        result = slide_output.model_dump()
+        
+        # Add conversation_id and title if new conversation was created
+        # Get from event (passed from router_workflow)
+        new_conv_id = ev.get("new_conversation_id")
+        new_conv_title = ev.get("new_conversation_title")
+        if new_conv_id:
+            result["conversation_id"] = new_conv_id
+            result["title"] = new_conv_title
+            print(f"📤 Returning new conversation_id: {new_conv_id}, title: {new_conv_title}")
             
-        return StopEvent(result=slide_output.model_dump())
+        return StopEvent(result=result)
 
