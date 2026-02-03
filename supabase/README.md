@@ -11,6 +11,7 @@ This directory contains all database migrations for the Agent Chat Application.
 - [ ] **005** - 2026-03-01 - Update conversation_summaries (remove version column, conversation_id as PRIMARY KEY)
 - [ ] **006** - 2026-03-01 - Add UPDATE policy for conversation_summaries (required for upsert())
 - [ ] **007** - 2026-03-01 - Remove unused next_presentation_id_counter column from conversations
+- [ ] **008** - 2026-XX-XX - Add function to check user auth providers (for OAuth account detection)
 
 ## 📊 Current Schema
 
@@ -30,6 +31,7 @@ This directory contains all database migrations for the Agent Chat Application.
 
 ### Utility Functions
 - `check_email_exists(user_email TEXT)` - Check if email exists in auth.users
+- `check_user_auth_providers(user_email TEXT)` - Get list of auth providers (email, google, etc.) for a user
 - `update_updated_at_column()` - Trigger function to auto-update updated_at
 
 ### Memory Management
@@ -50,8 +52,9 @@ All tables have Row Level Security (RLS) enabled. Policies ensure:
 - Users can only access their own data
 - Conversations, messages, and presentations are isolated by user
 - Most RPC functions use RLS (no SECURITY DEFINER)
-- Only 2 functions use SECURITY DEFINER:
+- Only 3 functions use SECURITY DEFINER:
   - `check_email_exists` - Access auth.users (restricted resource)
+  - `check_user_auth_providers` - Access auth.identities (restricted resource)
   - `archive_presentation_version` - Complex operation with ownership validation
 
 ## 📝 How to Apply New Migration
@@ -72,7 +75,7 @@ All tables have Row Level Security (RLS) enabled. Policies ensure:
 - Timestamps use TIMESTAMPTZ with NOW() defaults
 - Foreign keys have CASCADE or SET NULL deletion policies
 - Most RPC functions use RLS (no SECURITY DEFINER) for automatic security
-- Only 2 functions use SECURITY DEFINER (with ownership validation where needed)
+- Only 3 functions use SECURITY DEFINER (with ownership validation where needed)
 - Migrations are already applied to production ✅
 
 ## 📂 Directory Structure
@@ -87,7 +90,8 @@ supabase/
     ├── 004_update_rpc_functions.sql       # Update RPC functions (security improvements)
     ├── 005_update_conversation_summaries.sql # Update conversation_summaries schema
     ├── 006_add_update_policy_summaries.sql # Add UPDATE policy for conversation_summaries
-    └── 007_remove_next_presentation_id_counter.sql # Remove unused counter column
+    ├── 007_remove_next_presentation_id_counter.sql # Remove unused counter column
+    └── 008_check_user_auth_providers.sql  # Add function to check user auth providers
 ```
 
 ## 📋 Migration Content Details
@@ -134,3 +138,10 @@ supabase/
 - Legacy field from JSON storage era when presentations used counter-based IDs (slide_001, slide_002)
 - Current implementation uses UUID for presentation IDs, so counter is no longer needed
 - Cleanup: Removes unused database column
+
+### 008_check_user_auth_providers.sql
+- Add `check_user_auth_providers(user_email TEXT)` function
+- Returns JSONB array of auth providers (email, google, etc.) for a given email
+- Uses SECURITY DEFINER to access `auth.identities` table (restricted resource)
+- Purpose: Enable frontend to detect OAuth-only accounts and show appropriate error messages
+- Used in login flow to inform users when account was created with Google OAuth
