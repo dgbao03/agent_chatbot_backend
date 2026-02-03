@@ -2,7 +2,7 @@
 User facts tools for LLM.
 These tools allow LLM to add, update, and delete user facts.
 """
-from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact
+from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact as delete_user_fact_repo
 from app.utils.helpers import find_fact_by_key
 from app.auth.context import get_current_user_id
 
@@ -115,7 +115,7 @@ def delete_user_fact(key: str) -> str:
             return f"Không tìm thấy thông tin với key: {key_clean}"
         
         # Delete fact
-        if delete_user_fact(user_id, key_clean):
+        if delete_user_fact_repo(user_id, key_clean):
             return f"Đã xóa thông tin: {key_clean}"
         else:
             return "Lỗi: Không thể xóa thông tin."
