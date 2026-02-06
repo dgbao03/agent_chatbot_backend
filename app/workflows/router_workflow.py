@@ -114,13 +114,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         # Get user_id from context var (set by Auth middleware)
         user_id = get_current_user_id()
         
-        # Debug log
-        print(f"\n=== WORKFLOW DEBUG ===")
-        print(f"user_input: {user_input}")
-        print(f"user_id (from context): {user_id} (type: {type(user_id)})")
-        print(f"conversation_id: {conversation_id}")
-        print(f"======================\n")
-
         # Validate required params
         if not user_id or user_id == "None":
             raise ValueError("user_id is missing or invalid. Authentication failed.")
@@ -134,7 +127,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         
         if is_new_conversation:
             # Create new conversation
-            print(f"🆕 Creating new conversation for user: {user_id}")
             conversation_id = create_new_conversation(user_id)
             new_conv_id = conversation_id
             
@@ -143,7 +135,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
                 title = generate_conversation_title(user_input)
                 update_conversation_title(conversation_id, title)
                 new_conv_title = title
-                print(f"✅ Generated title: {title}")
             except Exception as e:
                 # Fallback: use truncated user input
                 title = user_input[:60].strip()
@@ -151,7 +142,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
                     title += "..."
                 update_conversation_title(conversation_id, title)
                 new_conv_title = title
-                print(f"⚠️ Title generation failed, using fallback: {title}")
         else:
             # ✅ Validate conversation ownership (fail early before processing)
             validate_conversation_access(user_id, conversation_id)
@@ -276,19 +266,14 @@ class RouterWorkflow(Workflow, SlideWorkflow):
                     args = args_str
 
                 if name == "get_weather":
-                    print(f"==== Calling get_weather with args: {args} ====")
                     result = get_weather(**args)
                 elif name == "get_stock_price":
-                    print(f"==== Calling get_stock_price with args: {args} ====")
                     result = get_stock_price(**args)
                 elif name == "add_user_fact":
-                    print(f"==== Calling add_user_fact with args: {args} ====")
                     result = add_user_fact(**args)
                 elif name == "update_user_fact":
-                    print(f"==== Calling update_user_fact with args: {args} ====")
                     result = update_user_fact(**args)
                 elif name == "delete_user_fact":
-                    print(f"==== Calling delete_user_fact with args: {args} ====")
                     result = delete_user_fact(**args)
                 else:
                     result = "Unknown tool"
@@ -303,14 +288,10 @@ class RouterWorkflow(Workflow, SlideWorkflow):
 
         raw_text = resp.message.content.strip()
 
-        print(f"\n==== Raw text: {raw_text} ====\n")
-
         try:
             output = RouterOutput.model_validate_json(raw_text)
         except Exception as e:
             # raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
-            print(f"ERROR: Invalid JSON output:\n{raw_text}\nException: {e}")
-            
             return StopEvent(result=error_output.model_dump())
 
         if output.intent == INTENT_GENERAL:
@@ -337,8 +318,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         # Xử lý memory truncation và summary cho GENERAL case
         if output.intent == INTENT_GENERAL:
             await process_memory_truncation(ctx, memory)
-        
-        print(messages)
 
         # Prepare result
         result = output.model_dump()
@@ -347,7 +326,6 @@ class RouterWorkflow(Workflow, SlideWorkflow):
         if new_conv_id:
             result["conversation_id"] = new_conv_id
             result["title"] = new_conv_title
-            print(f"📤 Returning new conversation_id: {new_conv_id}, title: {new_conv_title}")
 
         # 🔀 Backend routing
         if output.intent == INTENT_GENERAL:

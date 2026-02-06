@@ -43,8 +43,7 @@ def load_summary(conversation_id: str) -> SummaryDict:
             FIELD_SUMMARY_CONTENT: response.data[0].get(FIELD_SUMMARY_CONTENT, "")
         }
         
-    except Exception as e:
-        print(f"Error loading chat summary from Supabase: {e}")
+    except Exception:
         return {FIELD_SUMMARY_CONTENT: ""}
 
 
@@ -71,8 +70,7 @@ def save_summary(conversation_id: str, summary_content: str) -> bool:
         
         return response.data is not None
         
-    except Exception as e:
-        print(f"Error saving chat summary to Supabase: {e}")
+    except Exception:
         return False
 
 
@@ -90,16 +88,15 @@ def mark_messages_as_summarized(message_ids: list[str]) -> bool:
         supabase = get_supabase_client()
         
         # Update messages with current UTC timestamp
-        response = supabase.from_(TABLE_MESSAGES).update({
-            FIELD_IS_IN_WORKING_MEMORY: False,
-            FIELD_SUMMARIZED_AT: datetime.now(timezone.utc).isoformat()
-        }).in_(FIELD_ID, message_ids).execute()
-        
-        print(f"✅ DB Update: Marked {len(message_ids)} messages as is_in_working_memory=FALSE")
+        response = supabase.from_(TABLE_MESSAGES).update(
+            {
+                FIELD_IS_IN_WORKING_MEMORY: False,
+                FIELD_SUMMARIZED_AT: datetime.now(timezone.utc).isoformat(),
+            }
+        ).in_(FIELD_ID, message_ids).execute()
         
         return True
         
-    except Exception as e:
-        print(f"❌ Error marking messages as summarized: {e}")
+    except Exception:
         return False
 

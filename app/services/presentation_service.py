@@ -131,18 +131,15 @@ IMPORTANT: Carefully match user request with presentation topics!
         # Validate and fix result
         if result.action in ["EDIT_SPECIFIC", "EDIT_ACTIVE"]:
             if not result.target_slide_id:
-                print("⚠️ LLM didn't provide target, using active presentation")
+                # If LLM doesn't provide target, fallback to active presentation
                 result.target_slide_id = active_id
         
         if result.action == "CREATE_NEW":
             result.target_slide_id = None
             result.target_page_number = None
-
-        print(context)
         
         return (result.action, result.target_slide_id, result.target_page_number)
         
     except Exception as e:
-        print(f"❌ Intent detection failed: {e}")
         raise ValueError(f"Intent detection failed: {e}") from e
 

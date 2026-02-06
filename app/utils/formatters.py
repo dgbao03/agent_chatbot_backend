@@ -35,8 +35,7 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         
         return "\n".join(formatted_lines)
         
-    except Exception as e:
-        print(f"Error formatting user facts for prompt: {e}")
+    except Exception:
         return ""
 
 

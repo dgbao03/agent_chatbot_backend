@@ -70,7 +70,6 @@ def create_presentation(
         response = supabase.from_(TABLE_PRESENTATIONS).insert(presentation_data).execute()
         
         if not response.data or len(response.data) == 0:
-            print("❌ Failed to create presentation")
             return None
         
         presentation_id = response.data[0][FIELD_ID]
@@ -89,16 +88,17 @@ def create_presentation(
             supabase.from_(TABLE_PRESENTATION_PAGES).insert(pages_data).execute()
         
         # Set as active presentation using RPC
-        supabase.rpc(RPC_SET_ACTIVE_PRESENTATION, {
-            RPC_PARAM_CONV_ID: conversation_id,
-            RPC_PARAM_P_ID: presentation_id
-        }).execute()
+        supabase.rpc(
+            RPC_SET_ACTIVE_PRESENTATION,
+            {
+                RPC_PARAM_CONV_ID: conversation_id,
+                RPC_PARAM_P_ID: presentation_id,
+            },
+        ).execute()
         
-        print(f"✅ Created presentation: {presentation_id} ({topic})")
         return presentation_id
         
-    except Exception as e:
-        print(f"❌ Error creating presentation: {e}")
+    except Exception:
         return None
 
 
@@ -119,7 +119,6 @@ def load_presentation(presentation_id: str) -> Optional[dict]:
         response = supabase.from_(TABLE_PRESENTATIONS).select('*').eq(FIELD_ID, presentation_id).execute()
         
         if not response.data or len(response.data) == 0:
-            print(f"❌ Presentation {presentation_id} not found")
             return None
         
         presentation = response.data[0]
@@ -145,8 +144,7 @@ def load_presentation(presentation_id: str) -> Optional[dict]:
             FIELD_METADATA: presentation.get(FIELD_METADATA, {})
         }
         
-    except Exception as e:
-        print(f"❌ Error loading presentation: {e}")
+    except Exception:
         return None
 
 
@@ -177,17 +175,19 @@ def update_presentation(
         presentation = supabase.from_(TABLE_PRESENTATIONS).select(FIELD_VERSION).eq(FIELD_ID, presentation_id).execute()
         
         if not presentation.data or len(presentation.data) == 0:
-            print(f"❌ Presentation {presentation_id} not found")
             return None
         
         current_version = presentation.data[0][FIELD_VERSION]
         new_version = current_version + 1
         
         # Archive current version using RPC (returns version_id UUID)
-        archive_response = supabase.rpc(RPC_ARCHIVE_PRESENTATION_VERSION, {RPC_PARAM_P_ID: presentation_id}).execute()
+        archive_response = supabase.rpc(
+            RPC_ARCHIVE_PRESENTATION_VERSION, {RPC_PARAM_P_ID: presentation_id}
+        ).execute()
         
         if not archive_response.data:
-            print(f"⚠️ Warning: Archive returned no version_id")
+            # Archive returned no version_id; continue with update
+            pass
         
         # Delete old pages (will be replaced)
         supabase.from_(TABLE_PRESENTATION_PAGES).delete().eq(FIELD_PRESENTATION_ID, presentation_id).execute()
@@ -215,11 +215,9 @@ def update_presentation(
         if pages_data:
             supabase.from_(TABLE_PRESENTATION_PAGES).insert(pages_data).execute()
         
-        print(f"✅ Updated presentation: {presentation_id} (v{current_version} → v{new_version})")
         return new_version
         
-    except Exception as e:
-        print(f"❌ Error updating presentation: {e}")
+    except Exception:
         return None
 
 
@@ -254,8 +252,7 @@ def get_presentation_versions(presentation_id: str) -> Optional[list]:
         
         return versions
         
-    except Exception as e:
-        print(f"❌ Error getting versions: {e}")
+    except Exception:
         return None
 
 
@@ -274,28 +271,31 @@ def get_version_content(presentation_id: str, version: int) -> Optional[dict]:
         supabase = get_supabase_client()
         
         # Check if requested version is current version
-        presentation = supabase.from_(TABLE_PRESENTATIONS).select(f'{FIELD_VERSION}, {FIELD_TOTAL_PAGES}').eq(FIELD_ID, presentation_id).execute()
+        presentation = supabase.from_(TABLE_PRESENTATIONS).select(
+            f'{FIELD_VERSION}, {FIELD_TOTAL_PAGES}'
+        ).eq(FIELD_ID, presentation_id).execute()
         
         if not presentation.data or len(presentation.data) == 0:
-            print(f"❌ Presentation {presentation_id} not found")
             return None
         
         current_version = presentation.data[0][FIELD_VERSION]
         
         # If requesting current version, load from presentation_pages
         if version == current_version:
-            print(f"📄 Loading CURRENT version {version} from presentation_pages")
-            pages_response = supabase.rpc(RPC_GET_PRESENTATION_PAGES, {RPC_PARAM_P_ID: presentation_id}).execute()
+            pages_response = supabase.rpc(
+                RPC_GET_PRESENTATION_PAGES, {RPC_PARAM_P_ID: presentation_id}
+            ).execute()
         else:
             # Otherwise load from archived versions
-            print(f"📦 Loading ARCHIVED version {version} from presentation_versions")
-            pages_response = supabase.rpc(RPC_GET_VERSION_PAGES, {
-                RPC_PARAM_P_ID: presentation_id,
-                RPC_PARAM_V_NUM: version
-            }).execute()
+            pages_response = supabase.rpc(
+                RPC_GET_VERSION_PAGES,
+                {
+                    RPC_PARAM_P_ID: presentation_id,
+                    RPC_PARAM_V_NUM: version,
+                },
+            ).execute()
         
         if not pages_response.data:
-            print(f"❌ No pages found for version {version}")
             return None
         
         pages = []
@@ -306,13 +306,9 @@ def get_version_content(presentation_id: str, version: int) -> Optional[dict]:
                 page_title=page_data.get(FIELD_PAGE_TITLE)
             ))
         
-        return {
-            'pages': pages,
-            FIELD_TOTAL_PAGES: len(pages)
-        }
+        return {'pages': pages, FIELD_TOTAL_PAGES: len(pages)}
         
-    except Exception as e:
-        print(f"❌ Error getting version content: {e}")
+    except Exception:
         return None
 
 
@@ -330,13 +326,14 @@ def get_active_presentation(conversation_id: str) -> Optional[str]:
         supabase = get_supabase_client()
         
         # Use RPC to get active presentation
-        response = supabase.rpc(RPC_GET_ACTIVE_PRESENTATION, {RPC_PARAM_CONV_ID: conversation_id}).execute()
+        response = supabase.rpc(
+            RPC_GET_ACTIVE_PRESENTATION, {RPC_PARAM_CONV_ID: conversation_id}
+        ).execute()
         
         # RPC returns UUID directly
         return response.data if response.data else None
         
-    except Exception as e:
-        print(f"❌ Error getting active presentation: {e}")
+    except Exception:
         return None
 
 
@@ -355,15 +352,17 @@ def set_active_presentation(conversation_id: str, presentation_id: str) -> bool:
         supabase = get_supabase_client()
         
         # Use RPC to set active presentation
-        supabase.rpc(RPC_SET_ACTIVE_PRESENTATION, {
-            RPC_PARAM_CONV_ID: conversation_id,
-            RPC_PARAM_P_ID: presentation_id
-        }).execute()
+        supabase.rpc(
+            RPC_SET_ACTIVE_PRESENTATION,
+            {
+                RPC_PARAM_CONV_ID: conversation_id,
+                RPC_PARAM_P_ID: presentation_id,
+            },
+        ).execute()
         
         return True
         
-    except Exception as e:
-        print(f"❌ Error setting active presentation: {e}")
+    except Exception:
         return False
 
 
@@ -389,7 +388,6 @@ def list_presentations(conversation_id: str) -> List[dict]:
         
         return response.data
         
-    except Exception as e:
-        print(f"❌ Error listing presentations: {e}")
+    except Exception:
         return []
 

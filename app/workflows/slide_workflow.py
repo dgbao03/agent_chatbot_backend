@@ -54,11 +54,11 @@ class SlideWorkflow:
         
         # Detect intent (now uses Supabase)
         try:
-            action, target_presentation_id, target_page_number = await detect_presentation_intent(ev.user_input, conversation_id, llm)
-        except Exception as e:
-            print(f"❌ Intent detection error: {e}")
+            action, target_presentation_id, target_page_number = await detect_presentation_intent(
+                ev.user_input, conversation_id, llm
+            )
+        except Exception:
             return StopEvent(result=error_output.model_dump())
-        print(f"Slide Output:\naction: {action}, target_presentation_id: {target_presentation_id}, target_page_number: {target_page_number}")
         
         # Load previous presentation data nếu EDIT
         previous_pages = None
@@ -197,9 +197,6 @@ class SlideWorkflow:
                 # Update slide_output với merged pages
                 slide_output.pages = merged_pages
                 slide_output.total_pages = len(merged_pages)
-                print(f"✅ Merged: Replaced page {target_page_number}, total {len(merged_pages)} pages")
-            else:
-                print(f"⚠️ LLM returned {len(slide_output.pages)} pages for EDIT_SPECIFIC_PAGE, expected 1. Using LLM output as-is.")
         
         # Save presentation result (to Supabase)
         try:
@@ -214,8 +211,6 @@ class SlideWorkflow:
                 )
                 if not presentation_id:
                     raise ValueError("Failed to create presentation")
-                
-                print(f"✅ Created and set as active: {presentation_id}")
             else:
                 # Update existing presentation
                 if not target_presentation_id:
@@ -235,18 +230,11 @@ class SlideWorkflow:
                 
                 # Update active_presentation_id (user is working with this presentation)
                 set_active_presentation(conversation_id, presentation_id)
-                print(f"✅ Updated active_presentation_id: {presentation_id}")
                 
-        except (ValueError, Exception) as e:
-            print(f"❌ Failed to save presentation: {e}")
+        except (ValueError, Exception):
             return StopEvent(result=error_output.model_dump())
         
         # Save assistant message to database
-        print(f"\n=== SAVING ASSISTANT MESSAGE (PPTX) ===")
-        print(f"Conversation ID: {conversation_id}")
-        print(f"Answer: {slide_output.answer[:100]}...")
-        print(f"Presentation ID: {presentation_id}")
-        
         try:
             assistant_msg_id = save_message(
                 conversation_id=conversation_id,
@@ -260,16 +248,8 @@ class SlideWorkflow:
                     METADATA_KEY_SLIDE_ID: presentation_id
                 }
             )
-            
-            if assistant_msg_id:
-                print(f"✅ Saved assistant message: {assistant_msg_id}")
-            else:
-                print(f"❌ Failed to save assistant message (returned None)!")
-        except Exception as e:
-            print(f"❌ Exception saving assistant message: {e}")
+        except Exception:
             assistant_msg_id = None
-        
-        print(f"========================================\n")
         
         # Append answer vào memory with message_id
         if memory:
@@ -285,8 +265,6 @@ class SlideWorkflow:
 
         # Xử lý memory truncation và summary
         await process_memory_truncation(ctx, memory)
-
-        print(messages)
         
         # Prepare result
         result = slide_output.model_dump()
@@ -298,7 +276,6 @@ class SlideWorkflow:
         if new_conv_id:
             result["conversation_id"] = new_conv_id
             result["title"] = new_conv_title
-            print(f"📤 Returning new conversation_id: {new_conv_id}, title: {new_conv_title}")
             
         return StopEvent(result=result)
 

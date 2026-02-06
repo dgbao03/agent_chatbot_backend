@@ -22,9 +22,6 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
     all_messages = memory.get_all()
     truncated_messages_list = memory.get()
     
-    print(f"\n===== MEMORY (BEFORE) =====\nTotal messages: {len(all_messages)}\n")
-    print(f"\n===== MEMORY (AFTER) =====\nTruncated messages count: {len(truncated_messages_list)}\n")
-    
     # Kiểm tra truncate bằng hash của message đầu tiên
     is_truncated = False
     is_empty_truncated = False  # Flag: truncated_messages_list rỗng
@@ -58,20 +55,11 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
         is_truncated = (hash_all != hash_truncated)
     
     if is_truncated:
-        if is_empty_truncated:
-            print("\nTRUNCATE STATUS: Truncated (Empty - summary all messages)\n")
-        else:
-            print("\nTRUNCATE STATUS: Truncated\n")
-        
         # Xử lý truncate: lấy 80% để summary, giữ lại 20% (hoặc summary toàn bộ nếu is_empty_truncated)
         messages_to_summarize, messages_to_keep = split_messages_for_summary(all_messages, is_empty_truncated)
         
-        print(f"Messages to summarize: {len(messages_to_summarize)}")
-        print(f"Messages to keep: {len(messages_to_keep)}")
-        
         # Tạo summary
         summary_text = await create_summary(conversation_id, messages_to_summarize)
-        print(f"Summary created: {summary_text[:100]}...")
         
         # Mark messages as summarized in DB (set is_in_working_memory = FALSE)
         message_ids_to_summarize = []
@@ -82,9 +70,6 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
         
         if message_ids_to_summarize:
             mark_messages_as_summarized(message_ids_to_summarize)
-            print(f"✅ Marked {len(message_ids_to_summarize)} messages as summarized (is_in_working_memory = FALSE)")
-        else:
-            print("⚠️ No message IDs found to mark as summarized")
         
         # Tạo memory mới
         if messages_to_keep:
@@ -96,15 +81,9 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
             # Cập nhật memory trong context
             await ctx.store.set("chat_history", new_memory)
             memory = new_memory
-            
-            print(f"Memory updated: {len(memory.get_all())} messages (only kept messages, no summary)\n")
         else:
             # Không có messages để giữ lại (is_empty_truncated): tạo memory rỗng
             new_memory = ChatMemoryBuffer.from_defaults(token_limit=memory.token_limit)
             await ctx.store.set("chat_history", new_memory)
             memory = new_memory
-            
-            print(f"Memory updated: 0 messages (all messages summarized, memory cleared)\n")
-    else:
-        print("\nTRUNCATE STATUS: Not Truncated\n")
 

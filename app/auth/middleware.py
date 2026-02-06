@@ -61,10 +61,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             # Extract user_id from verified JWT
             user_id = user_response.user.id
             
-            print(f"\n=== AUTH MIDDLEWARE ===")
-            print(f"✅ JWT verified - user_id: {user_id}")
-            print(f"=======================\n")
-            
             # Store user_id and JWT token in context var for workflow to access
             set_current_user_id(user_id)
             set_current_jwt_token(token)
@@ -82,7 +78,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return response
             
         except Exception as e:
-            print(f"Auth middleware error: {e}")
             return JSONResponse(
                 status_code=401,
                 content={"error": f"Authentication failed: {str(e)}"}

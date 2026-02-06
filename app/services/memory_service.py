@@ -157,12 +157,9 @@ async def create_summary(conversation_id: str, messages: list) -> str:
         # Lưu summary mới (UPSERT sẽ replace summary cũ)
         save_summary(conversation_id, summary_text)
         
-        print(f"Summary created/updated for conversation {conversation_id}")
-        
         return summary_text
         
-    except Exception as e:
-        print(f"Lỗi khi tạo summary: {e}")
+    except Exception:
         # Fallback: trả về summary đơn giản
         user_count = sum(1 for msg in messages if msg.role.value == ROLE_USER)
         assistant_count = sum(1 for msg in messages if msg.role.value == ROLE_ASSISTANT)

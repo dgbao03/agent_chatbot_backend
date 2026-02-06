@@ -35,15 +35,11 @@ def create_new_conversation(user_id: str) -> str:
         
         if response.data and len(response.data) > 0:
             conversation_id = response.data[0][FIELD_ID]
-            print(f"✅ Created new conversation: {conversation_id}")
             return conversation_id
         else:
             raise ValueError("Failed to create conversation: No data returned")
             
     except Exception as e:
-        print(f"❌ Error creating conversation: {e}")
-        import traceback
-        traceback.print_exc()
         raise ValueError(f"Failed to create conversation: {e}")
 
 
@@ -66,15 +62,10 @@ def update_conversation_title(conversation_id: str, title: str) -> bool:
         }).eq(FIELD_ID, conversation_id).execute()
         
         if response.data:
-            print(f"✅ Updated conversation title: {conversation_id} -> {title}")
             return True
         else:
-            print(f"⚠️ Update conversation title returned no data: {conversation_id}")
             return False
             
-    except Exception as e:
-        print(f"❌ Error updating conversation title: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return False
 

@@ -60,8 +60,7 @@ def load_chat_history(conversation_id: str) -> List[MessageDict]:
         
         return messages
         
-    except Exception as e:
-        print(f"Error loading chat history from Supabase: {e}")
+    except Exception:
         return []
 
 
@@ -95,24 +94,17 @@ def save_message(
             FIELD_CONTENT: content,
             FIELD_INTENT: intent,
             FIELD_METADATA: metadata,
-            FIELD_IS_IN_WORKING_MEMORY: DEFAULT_IS_IN_WORKING_MEMORY  # New messages start in working memory
+            FIELD_IS_IN_WORKING_MEMORY: DEFAULT_IS_IN_WORKING_MEMORY,  # New messages start in working memory
         }
-        
-        print(f"💾 Inserting message: role={role}, intent={intent}, content_len={len(content)}")
         
         response = supabase.from_(TABLE_MESSAGES).insert(message_data).execute()
         
         if response.data and len(response.data) > 0:
             msg_id = response.data[0][FIELD_ID]
-            print(f"✅ Message saved with ID: {msg_id}")
             return msg_id
         else:
-            print(f"⚠️ Insert returned no data: {response}")
             return None
         
-    except Exception as e:
-        print(f"❌ Error saving message to Supabase: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return None
 

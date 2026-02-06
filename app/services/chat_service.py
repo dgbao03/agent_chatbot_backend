@@ -30,13 +30,11 @@ def validate_conversation_access(user_id: str, conversation_id: str) -> None:
         
         conversation_owner_id = conversation_response.data.get(FIELD_USER_ID)
         if conversation_owner_id != user_id:
-            raise ValueError(f"Access denied: You can only access your own conversations. This conversation belongs to user {conversation_owner_id}.")
-        
-        print(f"✅ Conversation ownership validated: user_id={user_id}, conversation_id={conversation_id}")
-    except ValueError as e:
-        print(f"❌ Conversation ownership validation failed: {e}")
+            raise ValueError(
+                "Access denied: You can only access your own conversations."
+            )
+    except ValueError:
         raise
-    except Exception as e:
-        print(f"❌ Conversation ownership validation failed: {e}")
-        raise ValueError(f"Access denied: Unable to verify conversation ownership.")
+    except Exception:
+        raise ValueError("Access denied: Unable to verify conversation ownership.")
 

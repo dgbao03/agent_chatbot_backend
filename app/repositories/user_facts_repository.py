@@ -49,8 +49,7 @@ def load_user_facts(user_id: str) -> List[UserFactDict]:
         
         return facts
         
-    except Exception as e:
-        print(f"Error loading user facts from Supabase: {e}")
+    except Exception:
         return []
 
 
@@ -78,8 +77,7 @@ def upsert_user_fact(user_id: str, key: str, value: str) -> bool:
         
         return response.data is not None
         
-    except Exception as e:
-        print(f"Error upserting user fact to Supabase: {e}")
+    except Exception:
         return False
 
 
@@ -104,7 +102,6 @@ def delete_user_fact(user_id: str, key: str) -> bool:
         
         return True
         
-    except Exception as e:
-        print(f"Error deleting user fact from Supabase: {e}")
+    except Exception:
         return False
 
