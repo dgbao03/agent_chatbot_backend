@@ -3,15 +3,6 @@ Summary repository - Data access layer for conversation summaries.
 """
 from datetime import datetime, timezone
 from app.database.client import get_supabase_client
-from app.config.constants import (
-    TABLE_CONVERSATION_SUMMARIES,
-    TABLE_MESSAGES,
-    FIELD_CONVERSATION_ID,
-    FIELD_SUMMARY_CONTENT,
-    FIELD_IS_IN_WORKING_MEMORY,
-    FIELD_SUMMARIZED_AT,
-    FIELD_ID
-)
 from app.config.types import SummaryDict
 
 
@@ -31,16 +22,20 @@ def load_summary(conversation_id: str) -> SummaryDict:
         
         # Query summary for this conversation (conversation_id is PRIMARY KEY, only 1 row)
         # Use limit(1) instead of maybe_single() to avoid HTTP 406 Not Acceptable
-        response = supabase.from_(TABLE_CONVERSATION_SUMMARIES).select(FIELD_SUMMARY_CONTENT).eq(
-            FIELD_CONVERSATION_ID, conversation_id
-        ).limit(1).execute()
+        response = (
+            supabase.from_("conversation_summaries")
+            .select("summary_content")
+            .eq("conversation_id", conversation_id)
+            .limit(1)
+            .execute()
+        )
         
         # Check if response has data
         if not response.data or len(response.data) == 0:
-            return {FIELD_SUMMARY_CONTENT: ""}
+            return {"summary_content": ""}
         
         return {
-            FIELD_SUMMARY_CONTENT: response.data[0].get(FIELD_SUMMARY_CONTENT, "")
+            "summary_content": response.data[0].get("summary_content", ""),
         }
         
     except Exception:
@@ -63,10 +58,17 @@ def save_summary(conversation_id: str, summary_content: str) -> bool:
         supabase = get_supabase_client()
         
         # UPSERT: Insert if not exists, update if exists (conversation_id is PRIMARY KEY)
-        response = supabase.from_(TABLE_CONVERSATION_SUMMARIES).upsert({
-            FIELD_CONVERSATION_ID: conversation_id,
-            FIELD_SUMMARY_CONTENT: summary_content
-        }, on_conflict=FIELD_CONVERSATION_ID).execute()
+        response = (
+            supabase.from_("conversation_summaries")
+            .upsert(
+                {
+                    "conversation_id": conversation_id,
+                    "summary_content": summary_content,
+                },
+                on_conflict="conversation_id",
+            )
+            .execute()
+        )
         
         return response.data is not None
         
@@ -88,12 +90,17 @@ def mark_messages_as_summarized(message_ids: list[str]) -> bool:
         supabase = get_supabase_client()
         
         # Update messages with current UTC timestamp
-        response = supabase.from_(TABLE_MESSAGES).update(
-            {
-                FIELD_IS_IN_WORKING_MEMORY: False,
-                FIELD_SUMMARIZED_AT: datetime.now(timezone.utc).isoformat(),
-            }
-        ).in_(FIELD_ID, message_ids).execute()
+        response = (
+            supabase.from_("messages")
+            .update(
+                {
+                    "is_in_working_memory": False,
+                    "summarized_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            .in_("id", message_ids)
+            .execute()
+        )
         
         return True
         

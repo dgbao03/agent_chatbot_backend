@@ -3,12 +3,6 @@ Conversation repository - Data access layer for conversations.
 """
 from typing import Optional
 from app.database.client import get_supabase_client
-from app.config.constants import (
-    TABLE_CONVERSATIONS,
-    FIELD_ID,
-    FIELD_USER_ID,
-    FIELD_TITLE
-)
 
 
 def create_new_conversation(user_id: str) -> str:
@@ -28,13 +22,15 @@ def create_new_conversation(user_id: str) -> str:
     try:
         supabase = get_supabase_client()
         
-        response = supabase.from_(TABLE_CONVERSATIONS).insert({
-            FIELD_USER_ID: user_id,
-            FIELD_TITLE: None  # Sẽ update sau
-        }).execute()
+        response = supabase.from_("conversations").insert(
+            {
+                "user_id": user_id,
+                "title": None,  # Sẽ update sau
+            }
+        ).execute()
         
         if response.data and len(response.data) > 0:
-            conversation_id = response.data[0][FIELD_ID]
+            conversation_id = response.data[0]["id"]
             return conversation_id
         else:
             raise ValueError("Failed to create conversation: No data returned")
@@ -57,9 +53,12 @@ def update_conversation_title(conversation_id: str, title: str) -> bool:
     try:
         supabase = get_supabase_client()
         
-        response = supabase.from_(TABLE_CONVERSATIONS).update({
-            FIELD_TITLE: title
-        }).eq(FIELD_ID, conversation_id).execute()
+        response = (
+            supabase.from_("conversations")
+            .update({"title": title})
+            .eq("id", conversation_id)
+            .execute()
+        )
         
         if response.data:
             return True

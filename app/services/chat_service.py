@@ -2,11 +2,6 @@
 Chat service - Business logic for chat orchestration.
 """
 from app.database.client import get_supabase_client
-from app.config.constants import (
-    TABLE_CONVERSATIONS,
-    FIELD_ID,
-    FIELD_USER_ID
-)
 
 
 def validate_conversation_access(user_id: str, conversation_id: str) -> None:
@@ -23,12 +18,18 @@ def validate_conversation_access(user_id: str, conversation_id: str) -> None:
     """
     try:
         supabase = get_supabase_client()
-        conversation_response = supabase.from_(TABLE_CONVERSATIONS).select(FIELD_USER_ID).eq(FIELD_ID, conversation_id).maybe_single().execute()
+        conversation_response = (
+            supabase.from_("conversations")
+            .select("user_id")
+            .eq("id", conversation_id)
+            .maybe_single()
+            .execute()
+        )
         
         if not conversation_response.data:
             raise ValueError(f"Conversation {conversation_id} not found.")
         
-        conversation_owner_id = conversation_response.data.get(FIELD_USER_ID)
+        conversation_owner_id = conversation_response.data.get("user_id")
         if conversation_owner_id != user_id:
             raise ValueError(
                 "Access denied: You can only access your own conversations."

@@ -9,16 +9,6 @@ from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
 
 from app.config.models import SlideOutput, RouterOutput
-from app.config.constants import (
-    ROLE_ASSISTANT,
-    INTENT_PPTX,
-    INTENT_GENERAL,
-    FIELD_SUMMARY_CONTENT,
-    METADATA_KEY_PAGES,
-    METADATA_KEY_TOTAL_PAGES,
-    METADATA_KEY_TOPIC,
-    METADATA_KEY_SLIDE_ID
-)
 from app.services.presentation_service import detect_presentation_intent
 from app.repositories.presentation_repository import (
     load_presentation,
@@ -33,8 +23,8 @@ from app.workflows.memory_manager import process_memory_truncation
 from app.workflows.router_workflow import GenerateSlideEvent
 
 error_output = RouterOutput(
-    intent=INTENT_GENERAL,
-    answer="Sorry, I encountered an error processing your request. Please try again."
+    intent="GENERAL",
+    answer="Sorry, I encountered an error processing your request. Please try again.",
 )
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
@@ -110,8 +100,11 @@ class SlideWorkflow:
         
         # Load và thêm chat summary nếu có (sau Chat History)
         summary_data = load_summary(conversation_id)
-        if summary_data.get(FIELD_SUMMARY_CONTENT):
-            summary_text = f"\n===== CONVERSATION SUMMARY =====\n{summary_data[FIELD_SUMMARY_CONTENT]}"
+        if summary_data.get("summary_content"):
+            summary_text = (
+                "\n===== CONVERSATION SUMMARY =====\n"
+                f"{summary_data['summary_content']}"
+            )
             system_content += summary_text
         
         # Thêm previous slide pages nếu EDIT
@@ -238,15 +231,15 @@ class SlideWorkflow:
         try:
             assistant_msg_id = save_message(
                 conversation_id=conversation_id,
-                role=ROLE_ASSISTANT,
+                role="assistant",
                 content=slide_output.answer,
-                intent=INTENT_PPTX,
+                intent="PPTX",
                 metadata={
-                    METADATA_KEY_PAGES: [p.model_dump() for p in slide_output.pages],
-                    METADATA_KEY_TOTAL_PAGES: slide_output.total_pages,
-                    METADATA_KEY_TOPIC: slide_output.topic,
-                    METADATA_KEY_SLIDE_ID: presentation_id
-                }
+                    "pages": [p.model_dump() for p in slide_output.pages],
+                    "total_pages": slide_output.total_pages,
+                    "topic": slide_output.topic,
+                    "slide_id": presentation_id,
+                },
             )
         except Exception:
             assistant_msg_id = None
