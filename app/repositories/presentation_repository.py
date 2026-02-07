@@ -4,38 +4,39 @@ Presentation repository - Data access layer for presentations.
 from typing import Optional, List
 from app.database.client import get_supabase_client
 from app.config.pydantic_outputs import PageContent
-from app.config.types import PresentationDict, PresentationVersionDict
+from app.config.types import (
+    Presentation,
+    PresentationWithPages,
+    PresentationVersion,
+    VersionContent,
+)
 
 
 def create_presentation(
-    conversation_id: str,
-    topic: str,
-    pages: list,
-    total_pages: int,
+    presentation: Presentation,
+    pages: List[PageContent],
     user_request: str
-) -> Optional[str]:
+) -> Optional[Presentation]:
     """
     Create new presentation in Supabase.
     
     Args:
-        conversation_id: UUID of conversation
-        topic: Presentation topic
+        presentation: Presentation object with conversation_id, topic, total_pages
         pages: List of PageContent objects
-        total_pages: Total number of pages
         user_request: User's request text
         
     Returns:
-        presentation_id if successful, None otherwise
+        Presentation object with id and created_at set if successful, None otherwise
     """
     try:
         supabase = get_supabase_client()
         
         # Insert presentation metadata
         presentation_data = {
-            "conversation_id": conversation_id,
-            "topic": topic,
-            "total_pages": total_pages,
-            "version": 1,
+            "conversation_id": presentation["conversation_id"],
+            "topic": presentation["topic"],
+            "total_pages": presentation["total_pages"],
+            "version": presentation.get("version", 1),
             "metadata": {
                 "user_request": user_request,
             },
@@ -46,7 +47,8 @@ def create_presentation(
         if not response.data or len(response.data) == 0:
             return None
         
-        presentation_id = response.data[0]["id"]
+        saved_presentation = response.data[0]
+        presentation_id = saved_presentation["id"]
         
         # Insert pages
         pages_data = []
@@ -67,18 +69,27 @@ def create_presentation(
         supabase.rpc(
             "set_active_presentation",
             {
-                "conv_id": conversation_id,
+                "conv_id": presentation["conversation_id"],
                 "p_id": presentation_id,
             },
         ).execute()
         
-        return presentation_id
+        return {
+            "id": saved_presentation["id"],
+            "conversation_id": saved_presentation["conversation_id"],
+            "topic": saved_presentation["topic"],
+            "total_pages": saved_presentation["total_pages"],
+            "version": saved_presentation.get("version", 1),
+            "metadata": saved_presentation.get("metadata", {}),
+            "created_at": saved_presentation.get("created_at"),
+            "updated_at": saved_presentation.get("updated_at"),
+        }
         
     except Exception:
         return None
 
 
-def load_presentation(presentation_id: str) -> Optional[dict]:
+def load_presentation(presentation_id: str) -> Optional[PresentationWithPages]:
     """
     Load presentation with current version pages.
     
@@ -86,7 +97,7 @@ def load_presentation(presentation_id: str) -> Optional[dict]:
         presentation_id: UUID of presentation
         
     Returns:
-        Dict with {id, topic, pages, total_pages, version} or None
+        PresentationWithPages object with pages included, or None
     """
     try:
         supabase = get_supabase_client()
@@ -122,11 +133,14 @@ def load_presentation(presentation_id: str) -> Optional[dict]:
         
         return {
             "id": presentation["id"],
+            "conversation_id": presentation["conversation_id"],
             "topic": presentation["topic"],
             "pages": pages,
             "total_pages": presentation["total_pages"],
             "version": presentation["version"],
             "metadata": presentation.get("metadata", {}),
+            "created_at": presentation.get("created_at"),
+            "updated_at": presentation.get("updated_at"),
         }
         
     except Exception:
@@ -134,40 +148,40 @@ def load_presentation(presentation_id: str) -> Optional[dict]:
 
 
 def update_presentation(
-    presentation_id: str,
-    topic: str,
-    pages: list,
-    total_pages: int,
+    presentation: Presentation,
+    pages: List[PageContent],
     user_request: str
-) -> Optional[int]:
+) -> Optional[Presentation]:
     """
     Update presentation (archives current version, then updates).
     
     Args:
-        presentation_id: UUID of presentation
-        topic: New topic
+        presentation: Presentation object with id, topic, total_pages
         pages: New list of PageContent objects
-        total_pages: New total pages count
         user_request: User's request text
         
     Returns:
-        New version number if successful, None otherwise
+        Presentation object with updated version if successful, None otherwise
     """
     try:
         supabase = get_supabase_client()
+        presentation_id = presentation["id"]
+        
+        if not presentation_id:
+            return None
         
         # Get current version
-        presentation = (
+        current_presentation = (
             supabase.from_("presentations")
             .select("version")
             .eq("id", presentation_id)
             .execute()
         )
         
-        if not presentation.data or len(presentation.data) == 0:
+        if not current_presentation.data or len(current_presentation.data) == 0:
             return None
         
-        current_version = presentation.data[0]["version"]
+        current_version = current_presentation.data[0]["version"]
         new_version = current_version + 1
         
         # Archive current version using RPC (returns version_id UUID)
@@ -185,16 +199,19 @@ def update_presentation(
         ).execute()
         
         # Update presentation metadata
-        supabase.from_("presentations").update(
+        update_response = supabase.from_("presentations").update(
             {
-                "topic": topic,
-                "total_pages": total_pages,
+                "topic": presentation["topic"],
+                "total_pages": presentation["total_pages"],
                 "version": new_version,
                 "metadata": {
                     "user_request": user_request,
                 },
             }
         ).eq("id", presentation_id).execute()
+        
+        if not update_response.data or len(update_response.data) == 0:
+            return None
         
         # Insert new pages
         pages_data = []
@@ -211,13 +228,23 @@ def update_presentation(
         if pages_data:
             supabase.from_("presentation_pages").insert(pages_data).execute()
         
-        return new_version
+        updated_presentation = update_response.data[0]
+        return {
+            "id": updated_presentation["id"],
+            "conversation_id": updated_presentation["conversation_id"],
+            "topic": updated_presentation["topic"],
+            "total_pages": updated_presentation["total_pages"],
+            "version": updated_presentation["version"],
+            "metadata": updated_presentation.get("metadata", {}),
+            "created_at": updated_presentation.get("created_at"),
+            "updated_at": updated_presentation.get("updated_at"),
+        }
         
     except Exception:
         return None
 
 
-def get_presentation_versions(presentation_id: str) -> Optional[list]:
+def get_presentation_versions(presentation_id: str) -> List[PresentationVersion]:
     """
     Get all versions metadata for a presentation.
     
@@ -225,7 +252,7 @@ def get_presentation_versions(presentation_id: str) -> Optional[list]:
         presentation_id: UUID of presentation
         
     Returns:
-        List of version metadata dicts or None
+        List of PresentationVersion objects
     """
     try:
         supabase = get_supabase_client()
@@ -239,24 +266,25 @@ def get_presentation_versions(presentation_id: str) -> Optional[list]:
             return []
         
         # Convert to expected format
-        versions: List[PresentationVersionDict] = []
+        versions: List[PresentationVersion] = []
         for v in response.data:
             versions.append(
                 {
                     "version": v["version"],
+                    "total_pages": v.get("total_pages", 0),
                     "is_current": v["is_current"],
                     "created_at": v["created_at"],
-                    "user_request": v.get("user_request", ""),
+                    "user_request": v.get("user_request"),
                 }
             )
         
         return versions
         
     except Exception:
-        return None
+        return []
 
 
-def get_version_content(presentation_id: str, version: int) -> Optional[dict]:
+def get_version_content(presentation_id: str, version: int) -> Optional[VersionContent]:
     """
     Get pages content of a specific version.
     
@@ -265,7 +293,7 @@ def get_version_content(presentation_id: str, version: int) -> Optional[dict]:
         version: Version number
         
     Returns:
-        Dict with {pages, total_pages} or None
+        VersionContent object with pages and total_pages, or None
     """
     try:
         supabase = get_supabase_client()
@@ -368,7 +396,7 @@ def set_active_presentation(conversation_id: str, presentation_id: str) -> bool:
         return False
 
 
-def list_presentations(conversation_id: str) -> List[dict]:
+def list_presentations(conversation_id: str) -> List[Presentation]:
     """
     List all presentations for a conversation.
     
@@ -376,14 +404,14 @@ def list_presentations(conversation_id: str) -> List[dict]:
         conversation_id: UUID of conversation
         
     Returns:
-        List of presentation metadata dicts
+        List of Presentation objects (without pages)
     """
     try:
         supabase = get_supabase_client()
         
         response = (
             supabase.from_("presentations")
-            .select("id, topic, total_pages, version, created_at")
+            .select("id, conversation_id, topic, total_pages, version, metadata, created_at, updated_at")
             .eq("conversation_id", conversation_id)
             .order("created_at", desc=True)
             .execute()
@@ -392,7 +420,22 @@ def list_presentations(conversation_id: str) -> List[dict]:
         if not response.data:
             return []
         
-        return response.data
+        presentations: List[Presentation] = []
+        for p in response.data:
+            presentations.append(
+                {
+                    "id": p["id"],
+                    "conversation_id": p["conversation_id"],
+                    "topic": p["topic"],
+                    "total_pages": p["total_pages"],
+                    "version": p["version"],
+                    "metadata": p.get("metadata"),
+                    "created_at": p.get("created_at"),
+                    "updated_at": p.get("updated_at"),
+                }
+            )
+        
+        return presentations
         
     except Exception:
         return []

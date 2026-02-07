@@ -5,6 +5,7 @@ These tools allow LLM to add, update, and delete user facts.
 from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact as delete_user_fact_repo
 from app.utils.helpers import find_fact_by_key
 from app.auth.context import get_current_user_id
+from app.config.types import UserFact
 
 
 def add_user_fact(key: str, value: str) -> str:
@@ -34,7 +35,13 @@ def add_user_fact(key: str, value: str) -> str:
         value_clean = value.strip()
         
         # Upsert fact in Supabase
-        if upsert_user_fact(user_id, key_clean, value_clean):
+        fact: UserFact = {
+            "user_id": user_id,
+            "key": key_clean,
+            "value": value_clean,
+        }
+        saved_fact = upsert_user_fact(fact)
+        if saved_fact:
             return f"Đã lưu: {key_clean} = {value_clean}"
         else:
             return "Lỗi: Không thể lưu thông tin."
@@ -77,8 +84,14 @@ def update_user_fact(key: str, value: str) -> str:
             return f"Không tìm thấy thông tin với key: {key_clean}. Sử dụng add_user_fact để thêm mới."
         
         # Update fact
-        if upsert_user_fact(user_id, key_clean, value_clean):
-                return f"Đã cập nhật: {key_clean} = {value_clean}"
+        fact_to_update: UserFact = {
+            "user_id": user_id,
+            "key": key_clean,
+            "value": value_clean,
+        }
+        saved_fact = upsert_user_fact(fact_to_update)
+        if saved_fact:
+            return f"Đã cập nhật: {key_clean} = {value_clean}"
         else:
             return "Lỗi: Không thể lưu thông tin."
                 

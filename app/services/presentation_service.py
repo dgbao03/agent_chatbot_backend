@@ -38,6 +38,7 @@ async def detect_presentation_intent(
         else:
             context = "===== AVAILABLE PRESENTATIONS =====\n\n"
             for i, pres in enumerate(presentations, 1):
+                # Direct access is safe - list_presentations() always returns objects with these fields
                 is_active = " (ACTIVE)" if pres["id"] == active_id else ""
                 context += f"Presentation {i}{is_active}:\n"
                 context += f"  - ID: {pres['id']}\n"

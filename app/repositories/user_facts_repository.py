@@ -1,12 +1,12 @@
 """
 User facts repository - Data access layer for user facts.
 """
-from typing import List
+from typing import List, Optional
 from app.database.client import get_supabase_client
-from app.config.types import UserFactDict
+from app.config.types import UserFact
 
 
-def load_user_facts(user_id: str) -> List[UserFactDict]:
+def load_user_facts(user_id: str) -> List[UserFact]:
     """
     Load user facts from Supabase.
     
@@ -14,7 +14,7 @@ def load_user_facts(user_id: str) -> List[UserFactDict]:
         user_id: UUID of the user
         
     Returns:
-        List of fact dicts: [{"key": "...", "value": "...", "id": "uuid"}, ...]
+        List of UserFact objects with all fields populated (id, user_id, key, value, created_at, updated_at)
     """
     try:
         supabase = get_supabase_client()
@@ -32,11 +32,12 @@ def load_user_facts(user_id: str) -> List[UserFactDict]:
             return []
         
         # Convert to simple format
-        facts: List[UserFactDict] = []
+        facts: List[UserFact] = []
         for fact in response.data:
             facts.append(
                 {
                     "id": fact["id"],
+                    "user_id": fact["user_id"],
                     "key": fact["key"],
                     "value": fact["value"],
                     "created_at": fact.get("created_at"),
@@ -50,17 +51,15 @@ def load_user_facts(user_id: str) -> List[UserFactDict]:
         return []
 
 
-def upsert_user_fact(user_id: str, key: str, value: str) -> bool:
+def upsert_user_fact(fact: UserFact) -> Optional[UserFact]:
     """
     Insert or update a user fact in Supabase.
     
     Args:
-        user_id: UUID of the user
-        key: Fact key (e.g., "company", "role")
-        value: Fact value
+        fact: UserFact object with user_id, key, value
         
     Returns:
-        True if successful, False otherwise
+        UserFact object with id, created_at, updated_at set if successful, None otherwise
     """
     try:
         supabase = get_supabase_client()
@@ -70,19 +69,30 @@ def upsert_user_fact(user_id: str, key: str, value: str) -> bool:
             supabase.from_("user_facts")
             .upsert(
                 {
-                    "user_id": user_id,
-                    "key": key,
-                    "value": value,
+                    "user_id": fact["user_id"],
+                    "key": fact["key"],
+                    "value": fact["value"],
                 },
                 on_conflict="user_id,key",
             )
             .execute()
         )
         
-        return response.data is not None
+        if not response.data or len(response.data) == 0:
+            return None
+        
+        saved_fact = response.data[0]
+        return {
+            "id": saved_fact["id"],
+            "user_id": saved_fact["user_id"],
+            "key": saved_fact["key"],
+            "value": saved_fact["value"],
+            "created_at": saved_fact.get("created_at"),
+            "updated_at": saved_fact.get("updated_at"),
+        }
         
     except Exception:
-        return False
+        return None
 
 
 def delete_user_fact(user_id: str, key: str) -> bool:

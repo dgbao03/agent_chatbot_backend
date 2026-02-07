@@ -8,17 +8,17 @@ from typing import TypedDict, Optional, List, Literal
 # ============================================
 # MESSAGE TYPES
 # ============================================
-class MessageDict(TypedDict, total=False):
-    """Message dictionary structure returned from database."""
-    id: str
+class Message(TypedDict, total=False):
+    """Message entity - maps to messages table."""
+    id: Optional[str]
+    conversation_id: str
     role: Literal["user", "assistant", "system"]
     content: str
     intent: Optional[Literal["PPTX", "GENERAL"]]
-    created_at: str
-    conversation_id: str
     is_in_working_memory: bool
     summarized_at: Optional[str]
     metadata: Optional[dict]
+    created_at: Optional[str]
 
 
 # ============================================
@@ -32,14 +32,14 @@ class SummaryDict(TypedDict):
 # ============================================
 # USER FACT TYPES
 # ============================================
-class UserFactDict(TypedDict, total=False):
-    """User fact dictionary structure returned from database."""
-    id: str
+class UserFact(TypedDict, total=False):
+    """User fact entity - maps to user_facts table."""
+    id: Optional[str]
+    user_id: str
     key: str
     value: str
     created_at: Optional[str]
     updated_at: Optional[str]
-    user_id: str
 
 
 # ============================================
@@ -50,21 +50,33 @@ class PresentationMetadataDict(TypedDict, total=False):
     user_request: str
 
 
-class PresentationDict(TypedDict, total=False):
-    """Presentation dictionary structure returned from database."""
-    id: str
+class Presentation(TypedDict, total=False):
+    """Presentation entity - maps to presentations table."""
+    id: Optional[str]
+    conversation_id: str
     topic: str
-    pages: List[dict]  # List of PageContent-like dicts
     total_pages: int
     version: int
-    metadata: Optional[PresentationMetadataDict]
-    conversation_id: str
+    metadata: Optional[dict]
     created_at: Optional[str]
     updated_at: Optional[str]
 
 
-class PresentationVersionDict(TypedDict, total=False):
-    """Presentation version metadata structure."""
+class PresentationWithPages(TypedDict, total=False):
+    """Presentation with pages - maps to presentations + presentation_pages (JOIN)."""
+    id: str
+    conversation_id: str
+    topic: str
+    total_pages: int
+    version: int
+    pages: List[dict]  # List[PageContent] from pydantic_outputs
+    metadata: Optional[dict]
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+
+class PresentationVersion(TypedDict, total=False):
+    """Presentation version entity - maps to presentation_versions table + computed field."""
     version: int
     total_pages: int
     user_request: Optional[str]
@@ -72,12 +84,8 @@ class PresentationVersionDict(TypedDict, total=False):
     is_current: bool
 
 
-# ============================================
-# PAGE CONTENT TYPES
-# ============================================
-class PageContentDict(TypedDict, total=False):
-    """Page content dictionary structure."""
-    page_number: int
-    html_content: str
-    page_title: Optional[str]
+class VersionContent(TypedDict, total=False):
+    """Version content - aggregated from presentation_version_pages or presentation_pages."""
+    pages: List[dict]  # List[PageContent] from pydantic_outputs
+    total_pages: int
 

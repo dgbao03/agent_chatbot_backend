@@ -13,6 +13,7 @@ from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow.events import Event
 
 from app.config.pydantic_outputs import RouterOutput, SlideOutput
+from app.config.types import Message, Presentation
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
 from app.repositories.conversation_repository import create_new_conversation, update_conversation_title
@@ -228,13 +229,15 @@ class ChatWorkflow(Workflow):
         messages.append(ChatMessage(role=MessageRole.USER, content=user_input))
         
         # Save USER message to DB first and get ID
-        user_msg_id = save_message(
-            conversation_id=conversation_id,
-            role="user",
-            content=user_input,
-            intent=None,
-            metadata={}
-        )
+        user_message: Message = {
+            "conversation_id": conversation_id,
+            "role": "user",
+            "content": user_input,
+            "intent": None,
+            "metadata": {},
+        }
+        saved_user_msg = save_message(user_message)
+        user_msg_id = saved_user_msg["id"] if saved_user_msg else None
         
         # Put into memory with ID from DB
         memory.put(ChatMessage(
@@ -296,13 +299,15 @@ class ChatWorkflow(Workflow):
 
         if output.intent == "GENERAL":
             # Save ASSISTANT message to DB first and get ID
-            assistant_msg_id = save_message(
-                conversation_id=conversation_id,
-                role="assistant",
-                content=output.answer,
-                intent=output.intent,
-                metadata={}
-            )
+            assistant_message: Message = {
+                "conversation_id": conversation_id,
+                "role": "assistant",
+                "content": output.answer,
+                "intent": output.intent,
+                "metadata": {},
+            }
+            saved_assistant_msg = save_message(assistant_message)
+            assistant_msg_id = saved_assistant_msg["id"] if saved_assistant_msg else None
             
             # Put into memory with ID from DB
             memory.put(
@@ -359,8 +364,8 @@ class ChatWorkflow(Workflow):
         if target_presentation_id:
             presentation_data = load_presentation(target_presentation_id)
             if presentation_data:
-                previous_pages = presentation_data.get("pages")
-                total_pages = presentation_data.get("total_pages")
+                previous_pages = presentation_data["pages"]
+                total_pages = presentation_data["total_pages"]
 
         system_content = (
             "You are an expert HTML slide designer. Your task is to create a beautiful, professional HTML slide presentation.\n\n"
@@ -469,45 +474,57 @@ class ChatWorkflow(Workflow):
 
         try:
             if action == "CREATE_NEW":
-                presentation_id = create_presentation(
-                    conversation_id=conversation_id,
-                    topic=slide_output.topic,
+                presentation: Presentation = {
+                    "conversation_id": conversation_id,
+                    "topic": slide_output.topic,
+                    "total_pages": slide_output.total_pages,
+                    "version": 1,
+                }
+                saved_presentation = create_presentation(
+                    presentation=presentation,
                     pages=slide_output.pages,
-                    total_pages=slide_output.total_pages,
                     user_request=ev.user_input,
                 )
-                if not presentation_id:
+                if not saved_presentation:
                     raise ValueError("Failed to create presentation")
+                presentation_id = saved_presentation["id"]
             else:
                 if not target_presentation_id:
                     raise ValueError("target_presentation_id required for EDIT action")
-                new_version = update_presentation(
-                    presentation_id=target_presentation_id,
-                    topic=slide_output.topic,
+                presentation: Presentation = {
+                    "id": target_presentation_id,
+                    "conversation_id": conversation_id,
+                    "topic": slide_output.topic,
+                    "total_pages": slide_output.total_pages,
+                    "version": 1,  # Will be incremented in update_presentation
+                }
+                updated_presentation = update_presentation(
+                    presentation=presentation,
                     pages=slide_output.pages,
-                    total_pages=slide_output.total_pages,
                     user_request=ev.user_input,
                 )
-                if not new_version:
+                if not updated_presentation:
                     raise ValueError("Failed to update presentation")
-                presentation_id = target_presentation_id
+                presentation_id = updated_presentation["id"]
                 set_active_presentation(conversation_id, presentation_id)
         except (ValueError, Exception):
             return StopEvent(result=error_output.model_dump())
 
         try:
-            assistant_msg_id = save_message(
-                conversation_id=conversation_id,
-                role="assistant",
-                content=slide_output.answer,
-                intent="PPTX",
-                metadata={
+            assistant_message: Message = {
+                "conversation_id": conversation_id,
+                "role": "assistant",
+                "content": slide_output.answer,
+                "intent": "PPTX",
+                "metadata": {
                     "pages": [p.model_dump() for p in slide_output.pages],
                     "total_pages": slide_output.total_pages,
                     "topic": slide_output.topic,
                     "slide_id": presentation_id,
                 },
-            )
+            }
+            saved_assistant_msg = save_message(assistant_message)
+            assistant_msg_id = saved_assistant_msg["id"] if saved_assistant_msg else None
         except Exception:
             assistant_msg_id = None
 
