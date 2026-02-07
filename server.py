@@ -7,7 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 from workflows.server import WorkflowServer
 
 # Import workflow
-from app.workflows.router_workflow import RouterWorkflow
+from app.workflows.workflow import ChatWorkflow
 
 # Import auth middleware
 from app.auth.middleware import AuthMiddleware
@@ -38,7 +38,7 @@ logging.getLogger().addFilter(CancelledErrorFilter())
 
 async def main():
     """
-    Khởi tạo WorkflowServer và expose RouterWorkflow với Auth middleware
+    Khởi tạo WorkflowServer và expose ChatWorkflow với Auth middleware
     """
     # Tạo server với CORS + Auth middleware (thứ tự quan trọng: CORS trước, Auth sau)
     server = WorkflowServer(
@@ -55,7 +55,7 @@ async def main():
     )
 
     # Khởi tạo workflow
-    workflow = RouterWorkflow()
+    workflow = ChatWorkflow()
 
     # Đăng ký workflow với server
     server.add_workflow(

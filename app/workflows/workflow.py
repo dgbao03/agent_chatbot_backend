@@ -1,5 +1,5 @@
 """
-Router workflow - Main workflow for routing and answering user queries.
+Chat workflow - Main workflow for routing and answering user queries.
 """
 import json
 from typing import Union, Optional
@@ -9,11 +9,10 @@ from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow.events import Event
 
-from app.config.models import RouterOutput, SlideOutput
+from app.config.pydantic_outputs import RouterOutput, SlideOutput
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
 from app.repositories.conversation_repository import create_new_conversation, update_conversation_title
@@ -96,7 +95,7 @@ tools = [
     )
 ]
 
-class RouterWorkflow(Workflow):
+class ChatWorkflow(Workflow):
 
     @step
     async def route_and_answer(self, ctx: Context, ev: StartEvent) -> Union[StopEvent, "GenerateSlideEvent"]:

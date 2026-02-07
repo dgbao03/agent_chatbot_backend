@@ -9,7 +9,7 @@ agent_chat_backend_v2/
 ├── app/                          # Application code chính
 │   ├── config/                   # Cấu hình và constants
 │   │   ├── constants.py          # Magic strings và constants tập trung
-│   │   ├── models.py             # Pydantic models cho LLM structured output
+│   │   ├── pydantic_outputs.py   # Pydantic models cho LLM structured output
 │   │   └── types.py              # TypedDict cho shared data structures
 │   │
 │   ├── auth/                     # Authentication-related code
@@ -40,7 +40,7 @@ agent_chat_backend_v2/
 │   │   └── helpers.py            # Helper functions
 │   │
 │   └── workflows/                # LlamaIndex Workflows
-│       ├── router_workflow.py   # Main workflow: routing, answering, slide generation
+│       ├── workflow.py          # Main workflow: routing, answering, slide generation
 │       └── memory_manager.py    # Memory truncation và summarization logic
 │
 ├── supabase/                     # Database migrations
@@ -62,7 +62,7 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 ### 1. **Config Layer** (`app/config/`)
 - **constants.py**: Tập trung tất cả magic strings (roles, intents, field names, table names, RPC functions)
 - **types.py**: TypedDict definitions cho shared data structures
-- **models.py**: Pydantic models cho LLM structured output
+- **pydantic_outputs.py**: Pydantic models cho LLM structured output
 
 ### 2. **Auth Layer** (`app/auth/`)
 - **middleware.py**: JWT authentication middleware cho WorkflowServer
@@ -91,7 +91,7 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 
 ### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
-- **RouterWorkflow**: Main workflow gồm bước `route_and_answer` (routing + answering) và bước `generate_slide` (slide generation/editing)
+- **ChatWorkflow**: Main workflow gồm bước `route_and_answer` (routing + answering) và bước `generate_slide` (slide generation/editing)
 - **MemoryManager**: Xử lý memory truncation và summarization
 
 ## 🔄 Luồng Xử Lý Tổng Quát
@@ -105,10 +105,10 @@ WorkflowServer (server.py)
     ↓
 AuthMiddleware (JWT verification)
     ↓
-RouterWorkflow.route_and_answer()
+ChatWorkflow.route_and_answer()
 ```
 
-### 2. **RouterWorkflow Flow**
+### 2. **ChatWorkflow Flow**
 
 ```
 1. Authentication & Validation
@@ -144,10 +144,10 @@ RouterWorkflow.route_and_answer()
    │   ├─ Process memory truncation
    │   └─ Return response
    └─ If INTENT_PPTX:
-       └─ Emit GenerateSlideEvent → step generate_slide (cùng RouterWorkflow)
+       └─ Emit GenerateSlideEvent → step generate_slide (cùng ChatWorkflow)
 ```
 
-### 3. **Generate slide step (RouterWorkflow)**
+### 3. **Generate slide step (ChatWorkflow)**
 
 ```
 1. Detect Presentation Intent

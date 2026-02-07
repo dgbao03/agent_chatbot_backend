@@ -3,7 +3,7 @@ Presentation repository - Data access layer for presentations.
 """
 from typing import Optional, List
 from app.database.client import get_supabase_client
-from app.config.models import PageContent
+from app.config.pydantic_outputs import PageContent
 from app.config.types import PresentationDict, PresentationVersionDict
 
 

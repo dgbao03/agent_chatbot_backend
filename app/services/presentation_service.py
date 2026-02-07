@@ -3,7 +3,7 @@ Presentation service - Business logic for presentation management.
 """
 from typing import Optional, Tuple
 from llama_index.core.prompts import ChatPromptTemplate
-from app.config.models import SlideIntentOutput
+from app.config.pydantic_outputs import SlideIntentOutput
 from app.repositories.presentation_repository import (
     list_presentations,
     get_active_presentation
