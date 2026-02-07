@@ -40,9 +40,8 @@ agent_chat_backend_v2/
 │   │   └── helpers.py            # Helper functions
 │   │
 │   └── workflows/                # LlamaIndex Workflows
-│       ├── router_workflow.py   # Main workflow: routing và answering
-│       ├── slide_workflow.py     # Slide generation workflow
-│       └── memory_manager.py     # Memory truncation và summarization logic
+│       ├── router_workflow.py   # Main workflow: routing, answering, slide generation
+│       └── memory_manager.py    # Memory truncation và summarization logic
 │
 ├── supabase/                     # Database migrations
 │   ├── migrations/               # SQL migration files
@@ -92,8 +91,7 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 
 ### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
-- **RouterWorkflow**: Main workflow xử lý routing và answering
-- **SlideWorkflow**: Workflow xử lý slide generation và editing
+- **RouterWorkflow**: Main workflow gồm bước `route_and_answer` (routing + answering) và bước `generate_slide` (slide generation/editing)
 - **MemoryManager**: Xử lý memory truncation và summarization
 
 ## 🔄 Luồng Xử Lý Tổng Quát
@@ -146,10 +144,10 @@ RouterWorkflow.route_and_answer()
    │   ├─ Process memory truncation
    │   └─ Return response
    └─ If INTENT_PPTX:
-       └─ Trigger GenerateSlideEvent → SlideWorkflow
+       └─ Emit GenerateSlideEvent → step generate_slide (cùng RouterWorkflow)
 ```
 
-### 3. **SlideWorkflow Flow**
+### 3. **Generate slide step (RouterWorkflow)**
 
 ```
 1. Detect Presentation Intent
