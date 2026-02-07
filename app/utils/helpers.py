@@ -1,23 +1,23 @@
 """
 Pure utility functions (no domain dependencies).
 """
-from typing import Optional
+from typing import Optional, List
+from app.config.types import UserFact
 
 
-def find_fact_by_key(facts: list, key: str) -> Optional[dict]:
+def find_fact_by_key(facts: List[UserFact], key: str) -> Optional[UserFact]:
     """
     Tìm fact theo key (không phân biệt hoa thường).
     
     Args:
-        facts: List of fact dicts
-        key: Key to find
+        facts: List of UserFact objects
+        key: Key to find (case-insensitive)
         
     Returns:
-        Fact dict hoặc None
+        UserFact object if found, None otherwise
     """
     key_lower = key.lower().strip()
     for fact in facts:
         if isinstance(fact, dict) and fact.get("key", "").lower().strip() == key_lower:
             return fact
     return None
-

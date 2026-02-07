@@ -1,6 +1,8 @@
 """
 Format functions for converting data to text formats.
 """
+from typing import List
+from llama_index.core.llms import ChatMessage
 from app.repositories.user_facts_repository import load_user_facts
 
 
@@ -35,12 +37,12 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         return ""
 
 
-def format_messages_for_summary(messages: list) -> str:
+def format_messages_for_summary(messages: List[ChatMessage]) -> str:
     """
     Format messages thành text để gửi cho LLM summary.
     
     Args:
-        messages: List các ChatMessage
+        messages: List of ChatMessage objects from LlamaIndex memory
         
     Returns:
         str: Formatted text

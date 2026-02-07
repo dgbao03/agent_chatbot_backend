@@ -1,6 +1,7 @@
 """
 Memory service - Business logic for memory management.
 """
+from typing import List, Tuple
 from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.repositories.summary_repository import load_summary, save_summary
@@ -9,7 +10,10 @@ from app.utils.formatters import format_messages_for_summary
 llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
 
 
-def split_messages_for_summary(messages: list, is_empty_truncated: bool = False) -> tuple:
+def split_messages_for_summary(
+    messages: List[ChatMessage], 
+    is_empty_truncated: bool = False
+) -> Tuple[List[ChatMessage], List[ChatMessage]]:
     """
     Chia messages thành 80% (để summary) và 20% (giữ lại).
     Đảm bảo:
@@ -19,11 +23,11 @@ def split_messages_for_summary(messages: list, is_empty_truncated: bool = False)
     Nếu is_empty_truncated = True: summary toàn bộ messages, không giữ lại gì.
     
     Args:
-        messages: List các ChatMessage
+        messages: List of ChatMessage objects from LlamaIndex memory
         is_empty_truncated: Flag cho biết truncated_messages_list rỗng
         
     Returns:
-        tuple: (messages_to_summarize, messages_to_keep)
+        Tuple of (messages_to_summarize, messages_to_keep) - both are List[ChatMessage]
     """
     if not messages:
         return [], []
@@ -93,13 +97,13 @@ def split_messages_for_summary(messages: list, is_empty_truncated: bool = False)
     return messages_to_summarize, messages_to_keep
 
 
-async def create_summary(conversation_id: str, messages: list) -> str:
+async def create_summary(conversation_id: str, messages: List[ChatMessage]) -> str:
     """
     Tạo summary từ messages, kết hợp với summary cũ nếu có.
     
     Args:
         conversation_id: UUID of the conversation
-        messages: List các ChatMessage cần summary
+        messages: List of ChatMessage objects from LlamaIndex memory to summarize
         
     Returns:
         str: Summary text
