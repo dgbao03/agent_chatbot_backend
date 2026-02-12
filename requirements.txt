@@ -16,6 +16,9 @@ uvicorn
 # Tools
 tavily-python
 requests
+newspaper4k
+lxml
+lxml_html_clean
 
 # FastAPI
 fastapi

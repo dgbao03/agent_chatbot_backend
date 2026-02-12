@@ -28,6 +28,7 @@ from app.utils.title_generator import generate_conversation_title
 from app.tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
 from app.tools.weather import get_weather
 from app.tools.stock import get_stock_price
+from app.tools.url_extractor import extract_url_content
 from app.auth.context import get_current_user_id
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
@@ -99,6 +100,30 @@ tools = [
         Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa thông tin của họ. Không tự ý dùng hàm này.
         Ví dụ: nếu người dùng yêu cầu 'Xóa tên tôi' hoặc 'Xóa tuổi tôi', công cụ sẽ xóa key tương ứng. 
         Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'."""
+    ),
+    FunctionTool.from_defaults(
+        fn=extract_url_content,
+        name="extract_url_content",
+        description="""
+        Trích xuất và đọc nội dung từ một trang web URL để tóm tắt.
+        
+        Sử dụng công cụ này khi:
+        - User cung cấp URL và yêu cầu tóm tắt/đọc nội dung
+        - Keywords: "tóm tắt link", "tóm tắt URL", "đọc bài viết từ", "summarize", "đọc nội dung"
+        
+        Input: URL đầy đủ (phải bắt đầu với http:// hoặc https://)
+        Output: Tiêu đề và nội dung văn bản của bài viết
+        
+        Ví dụ sử dụng:
+        - "Tóm tắt https://techcrunch.com/article"
+        - "Đọc và tóm tắt nội dung từ link này: https://..."
+        - "Summarize the article at https://..."
+        
+        KHÔNG sử dụng khi:
+        - Câu hỏi chung không có URL
+        - URL chỉ là ngữ cảnh nhưng không yêu cầu tóm tắt
+        
+        Sau khi nhận được nội dung, hãy tạo bản tóm tắt ngắn gọn, rõ ràng cho người dùng."""
     )
 ]
 
@@ -151,12 +176,6 @@ Classify and respond."""
                     ("user", user_input)
                 ])
             )
-            
-            # Print classification result
-            print(f"[SECURITY CHECK] Classification: {result.classification}")
-            print(f"[SECURITY CHECK] User input: {user_input[:100]}...")
-            if result.answer:
-                print(f"[SECURITY CHECK] Rejection message: {result.answer}")
             
             if result.classification == "EXPLOIT":
                 # Get user_id from context
@@ -418,6 +437,8 @@ Classify and respond."""
                     result = update_user_fact(**args)
                 elif name == "delete_user_fact":
                     result = delete_user_fact(**args)
+                elif name == "extract_url_content":
+                    result = extract_url_content(**args)
                 else:
                     result = "Unknown tool"
 
