@@ -9,7 +9,6 @@ from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow.events import Event
 
 from app.config.pydantic_outputs import RouterOutput, SlideOutput, SecurityOutput
@@ -30,10 +29,7 @@ from app.repositories.presentation_repository import (
 )
 from app.utils.formatters import format_user_facts_for_prompt
 from app.utils.title_generator import generate_conversation_title
-from app.tools.user_facts import add_user_fact, update_user_fact, delete_user_fact
-from app.tools.weather import get_weather
-from app.tools.stock import get_stock_price
-from app.tools.url_extractor import extract_url_content
+from app.tools import registry
 from app.auth.context import get_current_user_id
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
@@ -60,77 +56,8 @@ error_output = RouterOutput(
     answer="Sorry, I encountered an error processing your request. Please try again.",
 )
 
-tools = [
-    FunctionTool.from_defaults(
-        fn=get_weather,
-        name="get_weather",
-        description="""
-        Lấy thông tin thời tiết theo thành phố. Input: Tên thành phố. 
-        Lưu ý: Chỉ sử dụng khi User yêu cầu thông tin thời tiết về thành phố.
-        Không sử dụng khi trong Request có tên thành phố/địa danh nhưng không yêu cầu thông tin thời tiết."""
-    ), 
-    FunctionTool.from_defaults(
-        fn=get_stock_price,
-        name="get_stock_price",
-        description="""
-        Lấy thông tin giá cổ phiếu theo mã cổ phiếu. Input: Mã cổ phiếu.
-        Lưu ý: Chỉ sử dụng khi User yêu cầu thông tin giá cổ phiếu của một công ty cụ thể.
-        Không sử dụng khi trong Request có mã cổ phiếu/địa danh/tên công ty nhưng không yêu cầu thông tin giá cổ phiếu."""
-    ),
-    FunctionTool.from_defaults(
-        fn=add_user_fact,
-        name="add_user_fact",
-        description="""
-        Định nghĩa User Fact: Các thông tin quan trọng/cá nhân về User cần ghi nhớ.
-        Sử dụng hàm khi thêm User Fact. 
-        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu nhớ thông tin của họ. Không tự ý dùng hàm này.
-        Khi người dùng yêu cầu thêm thông tin, ví dụ: 'Lưu lại rằng tôi tên là Bao Do', 'Nhớ rằng tôi sống ở Hà Nội'. 
-        Các thông tin sẽ được lưu dưới dạng key-value (ví dụ: 'name': 'Bao Do', 'location': 'Hà Nội')."""
-    ),
-    FunctionTool.from_defaults(
-        fn=update_user_fact,
-        name="update_user_fact",
-        description="""
-        Sử dụng hàm khi cập nhật User Fact theo key.
-        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu cập nhật thông tin của họ. Không tự ý dùng hàm này.
-        Nếu key không tồn tại, công cụ sẽ báo lỗi. 
-        Ví dụ: khi người dùng yêu cầu sửa đổi 'tuổi tôi là 30' hoặc 'tên tôi là Bao Do', công cụ sẽ cập nhật thông tin tương ứng. 
-        Nếu key không có, sẽ trả về lỗi như 'Key không tồn tại'."""
-    ),
-    FunctionTool.from_defaults(
-        fn=delete_user_fact,
-        name="delete_user_fact",
-        description="""
-        Sử dụng hàm khi xóa User Fact theo key.
-        Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa thông tin của họ. Không tự ý dùng hàm này.
-        Ví dụ: nếu người dùng yêu cầu 'Xóa tên tôi' hoặc 'Xóa tuổi tôi', công cụ sẽ xóa key tương ứng. 
-        Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'."""
-    ),
-    FunctionTool.from_defaults(
-        fn=extract_url_content,
-        name="extract_url_content",
-        description="""
-        Trích xuất và đọc nội dung từ một trang web URL để tóm tắt.
-        
-        Sử dụng công cụ này khi:
-        - User cung cấp URL và yêu cầu tóm tắt/đọc nội dung
-        - Keywords: "tóm tắt link", "tóm tắt URL", "đọc bài viết từ", "summarize", "đọc nội dung"
-        
-        Input: URL đầy đủ (phải bắt đầu với http:// hoặc https://)
-        Output: Tiêu đề và nội dung văn bản của bài viết
-        
-        Ví dụ sử dụng:
-        - "Tóm tắt https://techcrunch.com/article"
-        - "Đọc và tóm tắt nội dung từ link này: https://..."
-        - "Summarize the article at https://..."
-        
-        KHÔNG sử dụng khi:
-        - Câu hỏi chung không có URL
-        - URL chỉ là ngữ cảnh nhưng không yêu cầu tóm tắt
-        
-        Sau khi nhận được nội dung, hãy tạo bản tóm tắt ngắn gọn, rõ ràng cho người dùng."""
-    )
-]
+# Get all enabled tools from registry
+tools = registry.get_llama_tools()
 
 class ChatWorkflow(Workflow):
 
@@ -379,20 +306,8 @@ class ChatWorkflow(Workflow):
                 else:
                     args = args_str
 
-                if name == "get_weather":
-                    result = get_weather(**args)
-                elif name == "get_stock_price":
-                    result = get_stock_price(**args)
-                elif name == "add_user_fact":
-                    result = add_user_fact(**args)
-                elif name == "update_user_fact":
-                    result = update_user_fact(**args)
-                elif name == "delete_user_fact":
-                    result = delete_user_fact(**args)
-                elif name == "extract_url_content":
-                    result = extract_url_content(**args)
-                else:
-                    result = "Unknown tool"
+                # Execute tool via registry
+                result = registry.execute_tool(name, **args)
 
                 tool_msg = ChatMessage(
                     role=MessageRole.TOOL,

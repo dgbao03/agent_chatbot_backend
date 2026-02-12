@@ -90,14 +90,26 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
   - `memory_service.py`: Split messages cho summary, tạo summary với LLM
   - `presentation_service.py`: Detect presentation intent (CREATE_NEW, EDIT_SPECIFIC, EDIT_ACTIVE)
 
-### 6. **Tools Layer** (`app/tools/`)
-- **Trách nhiệm**: LLM function calling tools
-- **Sử dụng**: Repositories để lưu/đọc data, services cho business logic
-- **Tools hiện có**:
-  - `user_facts.py`: `add_user_fact`, `update_user_fact`, `delete_user_fact`
-  - `weather.py`: `get_weather` - Lấy thông tin thời tiết
-  - `stock.py`: `get_stock_price` - Lấy giá cổ phiếu
-  - `url_extractor.py`: `extract_url_content` - Trích xuất nội dung website (newspaper4k) để tóm tắt
+### 6. **Tools Layer** (`app/tools/`) - **NEW: Registry Pattern**
+- **Trách nhiệm**: LLM function calling tools với centralized management
+- **Architecture**: Tool Registry Pattern cho scalable tool management
+- **Core Components**:
+  - `base.py`: `BaseTool` abstract class - Base cho tất cả tools
+  - `registry.py`: `ToolRegistry` class - Centralized tool registry
+  - `__init__.py`: Auto-discovery và registration của tất cả tools
+  - `implementations/`: Folder chứa tất cả tool implementations
+- **Tools hiện có** (6 tools trong `implementations/`):
+  - `WeatherTool` - Lấy thông tin thời tiết
+  - `StockTool` - Lấy giá cổ phiếu
+  - `AddUserFactTool` - Thêm user fact
+  - `UpdateUserFactTool` - Cập nhật user fact
+  - `DeleteUserFactTool` - Xóa user fact
+  - `URLExtractorTool` - Trích xuất nội dung từ URL
+- **Lợi ích**:
+  - ✅ Thêm tool mới: Chỉ cần tạo class, không sửa workflow
+  - ✅ Enable/disable tools: Set `enabled = True/False`
+  - ✅ Tự động discovery: Tools tự động được register khi import
+  - ✅ Type-safe: Mỗi tool là class với metadata đầy đủ
 
 ### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
@@ -291,6 +303,69 @@ memory_manager.process_memory_truncation()
 - `get_version_pages(p_id, v_num)`: Lấy pages của specific version
 - `get_presentation_versions(p_id)`: Lấy tất cả versions metadata
 - `archive_presentation_version(p_id)`: Archive current version trước khi update
+
+## 🔧 How to Add a New Tool
+
+Với Tool Registry Pattern, việc thêm tool mới cực kỳ đơn giản:
+
+### **Bước 1: Tạo Tool Class**
+
+Tạo file mới trong `app/tools/implementations/`:
+
+```python
+# app/tools/implementations/your_tool.py
+from app.tools.base import BaseTool
+
+class YourTool(BaseTool):
+    name = "your_tool_name"
+    category = "your_category"
+    description = """
+    Detailed description for LLM:
+    - When to use this tool
+    - Input parameters
+    - Output format
+    - Examples
+    """
+    
+    def execute(self, param1: str, param2: int) -> str:
+        # Your tool logic here
+        return "result"
+```
+
+### **Bước 2: Export Tool**
+
+Thêm import vào `app/tools/implementations/__init__.py`:
+
+```python
+from app.tools.implementations.your_tool import YourTool
+
+__all__ = [
+    # ... existing tools
+    "YourTool",  # Add your tool here
+]
+```
+
+### **Bước 3: Register Tool**
+
+Thêm tool vào `app/tools/__init__.py`:
+
+```python
+from app.tools.implementations import YourTool
+
+_ALL_TOOLS = [
+    # ... existing tools
+    YourTool(),  # Add your tool here
+]
+```
+
+**XONG!** Tool tự động xuất hiện trong registry và LLM có thể sử dụng ngay.
+
+### **Optional: Disable Tool**
+
+```python
+class YourTool(BaseTool):
+    enabled = False  # Tool sẽ không được load
+```
 
 ## 📝 Notes
 

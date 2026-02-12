@@ -10,6 +10,7 @@ python-dotenv
 
 # WorkflowServer (REST API)
 llama-index-workflows[server]
+llama-agents-server
 starlette
 uvicorn
 

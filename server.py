@@ -4,7 +4,7 @@ import json
 
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from workflows.server import WorkflowServer
+from llama_agents.server import WorkflowServer
 
 # Import workflow
 from app.workflows.workflow import ChatWorkflow
