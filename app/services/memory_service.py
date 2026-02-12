@@ -6,6 +6,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
+from app.config.prompts import SUMMARY_INITIAL_PROMPT, SUMMARY_UPDATE_PROMPT
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
 
@@ -119,25 +120,11 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage]) -> s
         # Tạo prompt cho LLM
         if not old_summary:
             # Lần đầu tiên, không có summary cũ
-            system_prompt = (
-                "Bạn là một AI chuyên tạo tóm tắt cuộc hội thoại.\n"
-                "Nhiệm vụ: Tóm tắt ngắn gọn các điểm chính của cuộc hội thoại.\n"
-                "Tập trung vào:\n"
-                "- Các chủ đề chính được thảo luận\n"
-                "- Thông tin quan trọng được chia sẻ\n"
-                "- Kết luận hoặc kết quả (nếu có)"
-            )
+            system_prompt = SUMMARY_INITIAL_PROMPT
             user_prompt = f"Hãy tóm tắt cuộc hội thoại sau đây:\n\n{formatted_messages}"
         else:
             # Có summary cũ, kết hợp với messages mới
-            system_prompt = (
-                "Bạn là một AI chuyên tạo tóm tắt tích lũy cuộc hội thoại.\n"
-                "Nhiệm vụ: Tạo tóm tắt mới bằng cách kết hợp tóm tắt cũ với cuộc hội thoại mới.\n"
-                "Yêu cầu:\n"
-                "- Giữ lại thông tin quan trọng từ tóm tắt cũ\n"
-                "- Bổ sung thông tin mới từ cuộc hội thoại\n"
-                "- Tạo tóm tắt ngắn gọn, không lặp lại"
-            )
+            system_prompt = SUMMARY_UPDATE_PROMPT
             user_prompt = (
                 f"Tóm tắt cũ:\n{old_summary}\n\n"
                 f"Cuộc hội thoại mới:\n{formatted_messages}\n\n"

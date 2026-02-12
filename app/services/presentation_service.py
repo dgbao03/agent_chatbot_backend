@@ -4,6 +4,7 @@ Presentation service - Business logic for presentation management.
 from typing import Optional, Tuple
 from llama_index.core.prompts import ChatPromptTemplate
 from app.config.pydantic_outputs import SlideIntentOutput
+from app.config.prompts import PRESENTATION_INTENT_PROMPT
 from app.repositories.presentation_repository import (
     list_presentations,
     get_active_presentation
@@ -49,46 +50,7 @@ async def detect_presentation_intent(
                 context += f"Currently active: {active_id}\n"
         
         # System prompt
-        system_prompt = """You are a presentation intent classifier.
-
-Your task is to analyze user input and determine:
-1. What action: CREATE_NEW, EDIT_SPECIFIC, or EDIT_ACTIVE
-2. Which presentation to target (if editing)
-3. Which page to target (if editing specific page)
-
-RULES (in priority order):
-
-1. CREATE_NEW - When user wants a NEW presentation:
-   - Keywords: "tạo", "create", "make", "new slide/presentation"
-   - target_presentation_id: null
-   - target_page_number: null
-
-2. EDIT_SPECIFIC - When user references a SPECIFIC presentation (HIGHEST PRIORITY for edits):
-   - **IMPORTANT**: If user request contains ANY part of a presentation topic name, this is EDIT_SPECIFIC!
-   - By number: "presentation 1", "slide 2", "slide thứ 1"
-   - By topic name (full or partial): 
-     * "sửa slide sự biến mất" → match "Sự Biến Mất"
-     * "edit presentation về AI" → match "Artificial Intelligence"
-     * "slide chinh phục" → match "Chinh Phục Khó Khăn"
-   - **Rule**: Compare user request with ALL presentation topics, case-insensitive
-   - If ANY topic matches (even partially) → EDIT_SPECIFIC
-   - target_presentation_id: the matched presentation's ID
-   - target_page_number: page number if mentioned, else null
-
-3. EDIT_ACTIVE - When user wants to edit WITHOUT any specific reference:
-   - **ONLY use this if NO presentation topic/name/number is mentioned**
-   - Has edit keywords: "sửa", "edit", "change", "add", "thêm", "đổi"
-   - BUT no presentation identifier in request
-   - target_presentation_id: active presentation's ID
-   - target_page_number: page number if mentioned, else null
-
-PAGE-SPECIFIC EDIT:
-- If user mentions page number (e.g., "sửa trang 2", "edit page 3"):
-  → Set target_page_number to that number
-  → Edit ONLY that page
-- Otherwise: target_page_number = null (edit entire presentation)
-
-Always provide clear reasoning."""
+        system_prompt = PRESENTATION_INTENT_PROMPT
 
         user_message = f"""
 ===== AVAILABLE PRESENTATIONS =====

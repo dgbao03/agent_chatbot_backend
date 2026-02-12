@@ -66,6 +66,9 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
   - `SecurityOutput`: Security classification (SAFE/EXPLOIT) với rejection message
   - `RouterOutput`: Intent routing (GENERAL/PPTX) với answer
   - `SlideOutput`: Slide generation output với pages
+- **prompts.py**: Tập trung tất cả system prompts cho LLM (6 prompts)
+  - Workflow prompts: `SECURITY_CHECK_PROMPT`, `ROUTER_ANSWER_PROMPT`, `SLIDE_GENERATION_PROMPT`
+  - Service prompts: `PRESENTATION_INTENT_PROMPT`, `SUMMARY_INITIAL_PROMPT`, `SUMMARY_UPDATE_PROMPT`
 
 ### 2. **Auth Layer** (`app/auth/`)
 - **middleware.py**: JWT authentication middleware cho WorkflowServer
