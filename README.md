@@ -63,6 +63,9 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 - **constants.py**: Tập trung tất cả magic strings (roles, intents, field names, table names, RPC functions)
 - **types.py**: TypedDict definitions cho shared data structures
 - **pydantic_outputs.py**: Pydantic models cho LLM structured output
+  - `SecurityOutput`: Security classification (SAFE/EXPLOIT) với rejection message
+  - `RouterOutput`: Intent routing (GENERAL/PPTX) với answer
+  - `SlideOutput`: Slide generation output với pages
 
 ### 2. **Auth Layer** (`app/auth/`)
 - **middleware.py**: JWT authentication middleware cho WorkflowServer
@@ -91,7 +94,10 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 
 ### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
-- **ChatWorkflow**: Main workflow gồm bước `route_and_answer` (routing + answering) và bước `generate_slide` (slide generation/editing)
+- **ChatWorkflow**: Main workflow gồm 3 steps:
+  - `security_check`: Phát hiện system exploitation attempts (gpt-3.5-turbo)
+  - `route_and_answer`: Routing + answering với tool calling (gpt-4o-mini)
+  - `generate_slide`: Slide generation/editing (gpt-4o-mini)
 - **MemoryManager**: Xử lý memory truncation và summarization
 
 ## 🔄 Luồng Xử Lý Tổng Quát
@@ -105,10 +111,37 @@ WorkflowServer (server.py)
     ↓
 AuthMiddleware (JWT verification)
     ↓
+ChatWorkflow.security_check() → Check system exploit
+    ↓
+    ├─ EXPLOIT: Return rejection → END
+    └─ SAFE: Continue
+        ↓
 ChatWorkflow.route_and_answer()
 ```
 
-### 2. **ChatWorkflow Flow**
+### 2. **Security Check Flow (NEW)**
+
+```
+1. LLM Security Classification (gpt-3.5-turbo)
+   └─ Classify: SAFE or EXPLOIT
+   
+2. If EXPLOIT detected:
+   ├─ Create conversation (if new)
+   ├─ Generate title
+   ├─ Save user message
+   ├─ Save rejection message (with metadata: {"security_classification": "EXPLOIT"})
+   └─ Return StopEvent with conversation_id and rejection
+
+3. If SAFE:
+   └─ Emit BusinessRouterEvent → Continue to route_and_answer
+
+Security Features:
+- Detects: prompt injection, jailbreak, system info requests
+- Multi-language rejection messages
+- Audit trail via metadata
+```
+
+### 3. **ChatWorkflow Flow**
 
 ```
 1. Authentication & Validation
@@ -147,7 +180,7 @@ ChatWorkflow.route_and_answer()
        └─ Emit GenerateSlideEvent → step generate_slide (cùng ChatWorkflow)
 ```
 
-### 3. **Generate slide step (ChatWorkflow)**
+### 4. **Generate slide step (ChatWorkflow)**
 
 ```
 1. Detect Presentation Intent
@@ -178,7 +211,7 @@ ChatWorkflow.route_and_answer()
    └─ Process memory truncation
 ```
 
-### 4. **Memory Management Flow**
+### 5. **Memory Management Flow**
 
 ```
 Memory Truncation Trigger
@@ -253,6 +286,8 @@ memory_manager.process_memory_truncation()
 - `archive_presentation_version(p_id)`: Archive current version trước khi update
 
 ## 📝 Notes
+
+- **Security Layer**: Security check step phát hiện system exploitation attempts (prompt injection, jailbreak) trước khi xử lý request. Sử dụng gpt-3.5-turbo cho cost-effective classification.
 
 - **Constants & Types**: Tất cả magic strings và shared data structures được tập trung trong `config/constants.py` và `config/types.py` để dễ maintain
 
