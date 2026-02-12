@@ -90,7 +90,11 @@ Hệ thống được tổ chức theo **Layered Architecture** với các tần
 ### 6. **Tools Layer** (`app/tools/`)
 - **Trách nhiệm**: LLM function calling tools
 - **Sử dụng**: Repositories để lưu/đọc data, services cho business logic
-- **Ví dụ**: `add_user_fact`, `get_weather`, `get_stock_price`
+- **Tools hiện có**:
+  - `user_facts.py`: `add_user_fact`, `update_user_fact`, `delete_user_fact`
+  - `weather.py`: `get_weather` - Lấy thông tin thời tiết
+  - `stock.py`: `get_stock_price` - Lấy giá cổ phiếu
+  - `url_extractor.py`: `extract_url_content` - Trích xuất nội dung website (newspaper4k) để tóm tắt
 
 ### 7. **Workflow Layer** (`app/workflows/`)
 - **Trách nhiệm**: Orchestration layer - điều phối toàn bộ flow
