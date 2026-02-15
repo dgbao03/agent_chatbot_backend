@@ -29,6 +29,8 @@ Examples of SAFE:
 - Normal questions and conversations
 - Requests for slides/presentations
 - Questions about weather, stocks, or general topics
+- Questions about user's own saved information ("Bạn biết gì về tôi?", "What do you know about me?", "Tôi đã lưu thông tin gì?")
+- Requests to remember, update, or forget personal information ("Nhớ rằng tôi tên là...", "Quên đi tên của tôi", "Xóa thông tin của tôi")
 
 IMPORTANT: If EXPLOIT detected, provide a polite rejection message in the SAME LANGUAGE as the user input.
 If SAFE, answer must be null.

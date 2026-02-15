@@ -135,12 +135,13 @@ class DeleteUserFactTool(BaseTool):
     """
     
     name = "delete_user_fact"
-    summary = "Xóa thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu xóa thông tin."
+    summary = "Quên/Xóa thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu quên/xóa thông tin Facts về người dùng."
     category = "user_data"
     description = """
 Sử dụng hàm khi xóa User Fact theo key.
-Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa thông tin của họ. Không tự ý dùng hàm này.
-Ví dụ: nếu người dùng yêu cầu 'Xóa tên tôi' hoặc 'Xóa tuổi tôi', công cụ sẽ xóa key tương ứng. 
+Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa hoặc quên thông tin của họ. Không tự ý dùng hàm này.
+Keywords: "xóa", "quên", "bỏ đi", "forget", "remove", "không cần nhớ nữa"
+Ví dụ: 'Xóa tên tôi', 'Quên đi tên của tôi', 'Forget my name', 'Bỏ đi thông tin tuổi', 'Không cần nhớ tên tôi nữa'.
 Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'."""
     
     def execute(self, key: str) -> str:
