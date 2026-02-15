@@ -13,12 +13,14 @@ class BaseTool(ABC):
     
     Attributes:
         name: Unique identifier for the tool
-        description: Detailed description of what the tool does, when to use it, and examples
+        summary: Short one-line description for system prompt tool instructions
+        description: Detailed description for OpenAI function calling format
         category: Category of the tool (external_api, user_data, content, etc.)
         enabled: Whether the tool is currently enabled
     """
     
     name: str
+    summary: str
     description: str
     category: str
     enabled: bool = True
@@ -58,6 +60,7 @@ class BaseTool(ABC):
         """
         return {
             "name": self.name,
+            "summary": self.summary,
             "description": self.description,
             "category": self.category,
             "enabled": self.enabled,

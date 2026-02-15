@@ -14,6 +14,7 @@ class AddUserFactTool(BaseTool):
     """
     
     name = "add_user_fact"
+    summary = "Lưu thông tin cá nhân của user (key-value). Sử dụng khi user yêu cầu ghi nhớ thông tin về họ."
     category = "user_data"
     description = """
 Định nghĩa User Fact: Các thông tin quan trọng/cá nhân về User cần ghi nhớ.
@@ -70,6 +71,7 @@ class UpdateUserFactTool(BaseTool):
     """
     
     name = "update_user_fact"
+    summary = "Cập nhật thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu sửa đổi thông tin."
     category = "user_data"
     description = """
 Sử dụng hàm khi cập nhật User Fact theo key.
@@ -133,6 +135,7 @@ class DeleteUserFactTool(BaseTool):
     """
     
     name = "delete_user_fact"
+    summary = "Xóa thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu xóa thông tin."
     category = "user_data"
     description = """
 Sử dụng hàm khi xóa User Fact theo key.

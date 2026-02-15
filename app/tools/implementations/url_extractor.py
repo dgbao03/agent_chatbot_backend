@@ -11,6 +11,7 @@ class URLExtractorTool(BaseTool):
     """
     
     name = "extract_url_content"
+    summary = "Trích xuất nội dung từ URL website để tóm tắt. Sử dụng khi user cung cấp URL và yêu cầu đọc/tóm tắt."
     category = "content"
     description = """
 Trích xuất và đọc nội dung từ một trang web URL để tóm tắt.

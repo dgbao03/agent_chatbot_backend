@@ -10,6 +10,7 @@ class WeatherTool(BaseTool):
     """
     
     name = "get_weather"
+    summary = "Lấy thông tin thời tiết hiện tại của một thành phố. Sử dụng khi user hỏi về thời tiết."
     category = "external_api"
     description = """
 Lấy thông tin thời tiết theo thành phố. Input: Tên thành phố. 

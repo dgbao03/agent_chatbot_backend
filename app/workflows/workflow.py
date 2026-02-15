@@ -17,6 +17,7 @@ from app.config.prompts import (
     SECURITY_CHECK_PROMPT,
     ROUTER_ANSWER_PROMPT,
     SLIDE_GENERATION_PROMPT,
+    TOOL_BEST_PRACTICES,
 )
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
@@ -237,6 +238,12 @@ class ChatWorkflow(Workflow):
         # Tạo System Prompt content
         system_content = ROUTER_ANSWER_PROMPT + "\n\n"
         
+        # Thêm tool instructions + best practices
+        tool_instructions = registry.get_tool_instructions()
+        if tool_instructions:
+            system_content += tool_instructions + "\n\n"
+        system_content += TOOL_BEST_PRACTICES + "\n\n"
+        
         # Thêm user facts nếu có
         if user_facts_text:
             system_content += user_facts_text + "\n\n"
@@ -305,6 +312,8 @@ class ChatWorkflow(Workflow):
                     args = json.loads(args_str)
                 else:
                     args = args_str
+
+                print(f"[TOOL CALL] {name}({args})")
 
                 # Execute tool via registry
                 result = registry.execute_tool(name, **args)

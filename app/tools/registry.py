@@ -116,6 +116,24 @@ class ToolRegistry:
         """
         return [tool.to_llama_tool() for tool in self.get_all_enabled()]
     
+    def get_tool_instructions(self) -> str:
+        """
+        Generate tool instructions text for injection into system prompt.
+        Lists all enabled tools with their name and short summary.
+        
+        Returns:
+            Formatted string with tool instructions
+        """
+        enabled_tools = self.get_all_enabled()
+        if not enabled_tools:
+            return ""
+        
+        lines = ["AVAILABLE TOOLS:"]
+        for tool in enabled_tools:
+            lines.append(f"- {tool.name}: {tool.summary}")
+        
+        return "\n".join(lines)
+    
     def get_tools_summary(self) -> Dict[str, Any]:
         """
         Get summary of registered tools.

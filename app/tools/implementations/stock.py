@@ -10,6 +10,7 @@ class StockTool(BaseTool):
     """
     
     name = "get_stock_price"
+    summary = "Lấy giá cổ phiếu theo mã ticker. Sử dụng khi user hỏi về giá cổ phiếu."
     category = "external_api"
     description = """
 Lấy thông tin giá cổ phiếu theo mã cổ phiếu. Input: Mã cổ phiếu.

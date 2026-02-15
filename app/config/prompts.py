@@ -36,6 +36,17 @@ If SAFE, answer must be null.
 Classify and respond."""
 
 
+TOOL_BEST_PRACTICES = """TOOL BEST PRACTICES:
+- User Fact tools (add_user_fact, update_user_fact, delete_user_fact):
+  * CHỈ sử dụng khi user YÊU CẦU RÕ RÀNG việc lưu/sửa/xóa thông tin cá nhân
+  * KHÔNG được tự động detect thông tin từ cuộc hội thoại để lưu user facts
+  * Ví dụ đúng: "Nhớ rằng tôi tên là Bảo" → Dùng add_user_fact
+  * Ví dụ sai: User nói "Tôi sống ở Hà Nội" trong câu chuyện → KHÔNG tự động lưu
+- General:
+  * KHÔNG gọi tool nếu bạn đã có đủ thông tin để trả lời
+  * Ưu tiên trả lời trực tiếp trước, chỉ dùng tool khi thực sự cần thiết"""
+
+
 ROUTER_ANSWER_PROMPT = """You are an AI router and answerer.
 
 Decide intent and answer if needed.
