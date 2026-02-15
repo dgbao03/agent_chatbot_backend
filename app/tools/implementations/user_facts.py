@@ -16,12 +16,7 @@ class AddUserFactTool(BaseTool):
     name = "add_user_fact"
     summary = "Lưu thông tin cá nhân của user (key-value). Sử dụng khi user yêu cầu ghi nhớ thông tin về họ."
     category = "user_data"
-    description = """
-Định nghĩa User Fact: Các thông tin quan trọng/cá nhân về User cần ghi nhớ.
-Sử dụng hàm khi thêm User Fact. 
-Lưu ý: Chỉ sử dụng khi người dùng yêu cầu nhớ thông tin của họ. Không tự ý dùng hàm này.
-Khi người dùng yêu cầu thêm thông tin, ví dụ: 'Lưu lại rằng tôi tên là Bao Do', 'Nhớ rằng tôi sống ở Hà Nội'. 
-Các thông tin sẽ được lưu dưới dạng key-value (ví dụ: 'name': 'Bao Do', 'location': 'Hà Nội')."""
+    description = """Save user's personal information as key-value pair to long-term memory. Use ONLY when user explicitly requests to remember their info (keywords: "nhớ", "lưu", "remember", "save"; examples: "Nhớ rằng tôi tên là Bảo", "Remember I live in Hanoi"). NEVER auto-detect and save info from casual conversation; stores as key-value pair and returns confirmation."""
     
     def execute(self, key: str, value: str) -> str:
         """
@@ -73,12 +68,7 @@ class UpdateUserFactTool(BaseTool):
     name = "update_user_fact"
     summary = "Cập nhật thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu sửa đổi thông tin."
     category = "user_data"
-    description = """
-Sử dụng hàm khi cập nhật User Fact theo key.
-Lưu ý: Chỉ sử dụng khi người dùng yêu cầu cập nhật thông tin của họ. Không tự ý dùng hàm này.
-Nếu key không tồn tại, công cụ sẽ báo lỗi. 
-Ví dụ: khi người dùng yêu cầu sửa đổi 'tuổi tôi là 30' hoặc 'tên tôi là Bao Do', công cụ sẽ cập nhật thông tin tương ứng. 
-Nếu key không có, sẽ trả về lỗi như 'Key không tồn tại'."""
+    description = """Update an existing user fact by key with a new value. Use ONLY when user explicitly requests to change their saved info (keywords: "sửa", "cập nhật", "update", "change"; examples: "Sửa tuổi thành 30", "Update my name to Bao Do"). Key must already exist, otherwise returns error; returns confirmation with updated key-value."""
     
     def execute(self, key: str, value: str) -> str:
         """
@@ -137,12 +127,7 @@ class DeleteUserFactTool(BaseTool):
     name = "delete_user_fact"
     summary = "Quên/Xóa thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu quên/xóa thông tin Facts về người dùng."
     category = "user_data"
-    description = """
-Sử dụng hàm khi xóa User Fact theo key.
-Lưu ý: Chỉ sử dụng khi người dùng yêu cầu xóa hoặc quên thông tin của họ. Không tự ý dùng hàm này.
-Keywords: "xóa", "quên", "bỏ đi", "forget", "remove", "không cần nhớ nữa"
-Ví dụ: 'Xóa tên tôi', 'Quên đi tên của tôi', 'Forget my name', 'Bỏ đi thông tin tuổi', 'Không cần nhớ tên tôi nữa'.
-Nếu không tìm thấy key, trả về lỗi như 'Không tìm thấy thông tin'."""
+    description = """Delete a saved user fact by key from long-term memory. Use when user explicitly requests to remove or forget their info (keywords: "xóa", "quên", "bỏ đi", "forget", "remove"; examples: "Xóa tên tôi", "Quên tuổi của tôi", "Forget my name"). NEVER auto-delete; returns confirmation or error if key not found."""
     
     def execute(self, key: str) -> str:
         """

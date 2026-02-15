@@ -13,26 +13,7 @@ class URLExtractorTool(BaseTool):
     name = "extract_url_content"
     summary = "Trích xuất nội dung từ URL website để tóm tắt. Sử dụng khi user cung cấp URL và yêu cầu đọc/tóm tắt."
     category = "content"
-    description = """
-Trích xuất và đọc nội dung từ một trang web URL để tóm tắt.
-
-Sử dụng công cụ này khi:
-- User cung cấp URL và yêu cầu tóm tắt/đọc nội dung
-- Keywords: "tóm tắt link", "tóm tắt URL", "đọc bài viết từ", "summarize", "đọc nội dung"
-
-Input: URL đầy đủ (phải bắt đầu với http:// hoặc https://)
-Output: Tiêu đề và nội dung văn bản của bài viết
-
-Ví dụ sử dụng:
-- "Tóm tắt https://techcrunch.com/article"
-- "Đọc và tóm tắt nội dung từ link này: https://..."
-- "Summarize the article at https://..."
-
-KHÔNG sử dụng khi:
-- Câu hỏi chung không có URL
-- URL chỉ là ngữ cảnh nhưng không yêu cầu tóm tắt
-
-Sau khi nhận được nội dung, hãy tạo bản tóm tắt ngắn gọn, rõ ràng cho người dùng."""
+    description = """Extract and parse article text content from a web URL. Use when user provides URL and explicitly requests to read or summarize it (keywords: "tóm tắt link", "summarize", "đọc bài viết"; examples: "Tóm tắt https://techcrunch.com/article", "Summarize this: https://..."). Requires valid http/https URL. Do NOT use when URL appears without summarize request; returns article title and text content."""
     
     def execute(self, url: str) -> str:
         """

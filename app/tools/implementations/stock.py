@@ -12,10 +12,7 @@ class StockTool(BaseTool):
     name = "get_stock_price"
     summary = "Lấy giá cổ phiếu theo mã ticker. Sử dụng khi user hỏi về giá cổ phiếu."
     category = "external_api"
-    description = """
-Lấy thông tin giá cổ phiếu theo mã cổ phiếu. Input: Mã cổ phiếu.
-Lưu ý: Chỉ sử dụng khi User yêu cầu thông tin giá cổ phiếu của một công ty cụ thể.
-Không sử dụng khi trong Request có mã cổ phiếu/địa danh/tên công ty nhưng không yêu cầu thông tin giá cổ phiếu."""
+    description = """Fetch real-time stock price by ticker symbol. Use when user explicitly asks about stock price of a specific company (e.g., "giá AAPL?", "stock price of TSLA"). Do NOT use when company name appears in context without a price request; returns current price and change percentage."""
     
     def execute(self, symbol: str) -> str:
         """
