@@ -2,8 +2,10 @@
 Auth Router - Authentication endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from jose import JWTError
+import os
 from app.schemas.auth import (
     LoginRequest, 
     RegisterRequest, 
@@ -41,6 +43,12 @@ from app.repositories.token_blacklist_repository import (
 )
 from app.auth.dependencies import get_current_user
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Frontend URL for OAuth redirects
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -207,7 +215,7 @@ async def google_oauth_callback(
     db: Session = Depends(get_db)
 ):
     """
-    Handle Google OAuth callback.
+    Handle Google OAuth callback and redirect to frontend with tokens.
     
     Args:
         code: Authorization code from Google
@@ -215,56 +223,63 @@ async def google_oauth_callback(
         db: Database session
         
     Returns:
-        TokenResponse with access_token, refresh_token, and user info
+        RedirectResponse to frontend with tokens in URL params
         
     Raises:
         HTTPException 400: If code exchange fails
         HTTPException 500: If user info retrieval fails
     """
-    # Exchange code for token
-    token_data = await exchange_google_code_for_token(code)
-    if not token_data:
-        raise HTTPException(status_code=400, detail="Failed to exchange authorization code")
-    
-    # Get user info from Google
-    access_token = token_data.get("access_token")
-    user_info = await get_google_user_info(access_token)
-    if not user_info:
-        raise HTTPException(status_code=500, detail="Failed to get user information")
-    
-    # Extract user data
-    email = user_info.get("email")
-    provider_user_id = user_info.get("id")
-    name = user_info.get("name")
-    avatar_url = user_info.get("picture")
-    
-    if not email or not provider_user_id:
-        raise HTTPException(status_code=400, detail="Missing required user information")
-    
-    # Get or create user
-    user, is_new = get_or_create_oauth_user(
-        email=email,
-        provider="google",
-        provider_user_id=provider_user_id,
-        name=name,
-        avatar_url=avatar_url,
-        db=db
-    )
-    
-    if not user:
-        raise HTTPException(status_code=500, detail="Failed to create or update user")
-    
-    # Generate tokens
-    access_token = create_access_token(str(user.id))
-    refresh_token = create_refresh_token(str(user.id))
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user_id=str(user.id),
-        email=user.email
-    )
+    try:
+        # Exchange code for token
+        token_data = await exchange_google_code_for_token(code)
+        if not token_data:
+            # Redirect to frontend with error
+            error_url = f"{FRONTEND_URL}/login?error=oauth_failed"
+            return RedirectResponse(url=error_url)
+        
+        # Get user info from Google
+        google_access_token = token_data.get("access_token")
+        user_info = await get_google_user_info(google_access_token)
+        if not user_info:
+            error_url = f"{FRONTEND_URL}/login?error=user_info_failed"
+            return RedirectResponse(url=error_url)
+        
+        # Extract user data
+        email = user_info.get("email")
+        provider_user_id = user_info.get("id")
+        name = user_info.get("name")
+        avatar_url = user_info.get("picture")
+        
+        if not email or not provider_user_id:
+            error_url = f"{FRONTEND_URL}/login?error=missing_user_data"
+            return RedirectResponse(url=error_url)
+        
+        # Get or create user
+        user, is_new = get_or_create_oauth_user(
+            email=email,
+            provider="google",
+            provider_user_id=provider_user_id,
+            name=name,
+            avatar_url=avatar_url,
+            db=db
+        )
+        
+        if not user:
+            error_url = f"{FRONTEND_URL}/login?error=user_creation_failed"
+            return RedirectResponse(url=error_url)
+        
+        # Generate JWT tokens
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(str(user.id))
+        
+        # Redirect to frontend with tokens in URL
+        callback_url = f"{FRONTEND_URL}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
+        return RedirectResponse(url=callback_url)
+        
+    except Exception as e:
+        # Redirect to frontend with error
+        error_url = f"{FRONTEND_URL}/login?error=unexpected_error"
+        return RedirectResponse(url=error_url)
 
 
 @router.get("/check-providers", response_model=CheckProvidersResponse)
