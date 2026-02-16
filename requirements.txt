@@ -27,3 +27,12 @@ fastapi
 # Supabase
 supabase
 
+# Backend Development
+fastapi
+sqlalchemy
+uvicorn[standard]
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+pydantic-settings
