@@ -52,3 +52,14 @@ class CheckProvidersResponse(BaseModel):
 class SignOutRequest(BaseModel):
     """Request model for sign out"""
     refresh_token: str = Field(..., description="JWT refresh token to revoke")
+
+
+class UserInfoResponse(BaseModel):
+    """Response model for current user information"""
+    user_id: str = Field(..., description="User's ID")
+    email: str = Field(..., description="User's email")
+    name: Optional[str] = Field(None, description="User's display name")
+    avatar_url: Optional[str] = Field(None, description="User's avatar URL")
+    provider: str = Field(..., description="Authentication provider (email, google)")
+    email_verified: bool = Field(..., description="Whether email is verified")
+    created_at: str = Field(..., description="Account creation timestamp")

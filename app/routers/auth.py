@@ -12,7 +12,8 @@ from app.schemas.auth import (
     OAuthURLResponse,
     OAuthCallbackRequest,
     CheckProvidersResponse,
-    SignOutRequest
+    SignOutRequest,
+    UserInfoResponse
 )
 from app.database.session import get_db
 from app.repositories.user_repository import (
@@ -344,3 +345,38 @@ async def sign_out(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to sign out")
+
+
+@router.get("/me", response_model=UserInfoResponse)
+async def get_current_user_info(
+    current_user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get current authenticated user information.
+    
+    Args:
+        current_user_id: Current authenticated user ID from JWT
+        db: Database session
+        
+    Returns:
+        UserInfoResponse with user details
+        
+    Raises:
+        HTTPException 401: If user not found
+    """
+    # Get user from database
+    user = get_user_by_id(current_user_id, db)
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return UserInfoResponse(
+        user_id=str(user.id),
+        email=user.email,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        provider=user.provider,
+        email_verified=user.email_verified,
+        created_at=user.created_at.isoformat() if user.created_at else None
+    )
