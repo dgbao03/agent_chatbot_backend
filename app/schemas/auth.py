@@ -30,3 +30,20 @@ class TokenResponse(BaseModel):
 class RefreshTokenRequest(BaseModel):
     """Request model for refreshing access token"""
     refresh_token: str = Field(..., description="JWT refresh token")
+
+
+class OAuthURLResponse(BaseModel):
+    """Response model for OAuth authorization URL"""
+    authorization_url: str = Field(..., description="Google OAuth authorization URL")
+    state: str = Field(..., description="CSRF state token")
+
+
+class OAuthCallbackRequest(BaseModel):
+    """Request model for OAuth callback"""
+    code: str = Field(..., description="Authorization code from OAuth provider")
+    state: Optional[str] = Field(None, description="CSRF state token")
+
+
+class CheckProvidersResponse(BaseModel):
+    """Response model for checking user auth providers"""
+    providers: list[str] = Field(..., description="List of auth providers (email, google)")

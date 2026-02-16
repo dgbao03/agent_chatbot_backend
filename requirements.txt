@@ -37,4 +37,8 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 pydantic-settings
+
+# OAuth
+authlib
+httpx
 email-validator
