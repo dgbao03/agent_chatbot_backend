@@ -1,21 +1,32 @@
 """
 Auth Schemas - Pydantic models for authentication endpoints
-TODO: Implement request/response schemas for auth
 """
-# from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
 
-# class RegisterRequest(BaseModel):
-#     email: EmailStr
-#     password: str
 
-# class LoginRequest(BaseModel):
-#     email: EmailStr
-#     password: str
+class RegisterRequest(BaseModel):
+    """Request model for user registration"""
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(..., min_length=6, description="User's password (min 6 characters)")
+    name: Optional[str] = Field(None, description="User's display name")
 
-# class TokenResponse(BaseModel):
-#     access_token: str
-#     refresh_token: str
-#     token_type: str = "bearer"
 
-# class RefreshTokenRequest(BaseModel):
-#     refresh_token: str
+class LoginRequest(BaseModel):
+    """Request model for user login"""
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(..., description="User's password")
+
+
+class TokenResponse(BaseModel):
+    """Response model for authentication tokens"""
+    access_token: str = Field(..., description="JWT access token (30 minutes)")
+    refresh_token: str = Field(..., description="JWT refresh token (7 days)")
+    token_type: str = Field(default="bearer", description="Token type")
+    user_id: str = Field(..., description="User's ID")
+    email: str = Field(..., description="User's email")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request model for refreshing access token"""
+    refresh_token: str = Field(..., description="JWT refresh token")

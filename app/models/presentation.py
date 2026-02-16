@@ -21,7 +21,7 @@ class Presentation(Base):
     topic = Column(String, nullable=False)
     total_pages = Column(Integer, nullable=False)
     version = Column(Integer, nullable=False, server_default="1")
-    metadata = Column(JSONB, nullable=True)
+    pres_metadata = Column('metadata', JSONB, nullable=True)
     
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))

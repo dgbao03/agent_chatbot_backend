@@ -26,8 +26,8 @@ class Message(Base):
     is_in_working_memory = Column(Boolean, nullable=False, server_default="true")
     summarized_at = Column(TIMESTAMP(timezone=True), nullable=True)
     
-    # Metadata
-    metadata = Column(JSONB, nullable=True)
+    # Metadata (using 'msg_metadata' to avoid SQLAlchemy reserved keyword 'metadata')
+    msg_metadata = Column('metadata', JSONB, nullable=True)
     
     # Timestamp
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))

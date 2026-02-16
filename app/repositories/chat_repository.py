@@ -54,7 +54,7 @@ def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
                     "intent": msg.intent,
                     "is_in_working_memory": msg.is_in_working_memory,
                     "summarized_at": msg.summarized_at.isoformat() if msg.summarized_at else None,
-                    "metadata": msg.metadata,
+                    "metadata": msg.msg_metadata,
                     "created_at": msg.created_at.isoformat() if msg.created_at else None,
                 }
             )
@@ -99,7 +99,7 @@ def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
             "intent": new_message.intent,
             "is_in_working_memory": new_message.is_in_working_memory,
             "summarized_at": new_message.summarized_at.isoformat() if new_message.summarized_at else None,
-            "metadata": new_message.metadata,
+            "metadata": new_message.msg_metadata,
             "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
         }
         

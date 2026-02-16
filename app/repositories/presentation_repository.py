@@ -85,7 +85,7 @@ def create_presentation(
             "topic": new_presentation.topic,
             "total_pages": new_presentation.total_pages,
             "version": new_presentation.version,
-            "metadata": new_presentation.metadata,
+            "metadata": new_presentation.pres_metadata,
             "created_at": new_presentation.created_at.isoformat() if new_presentation.created_at else None,
             "updated_at": new_presentation.updated_at.isoformat() if new_presentation.updated_at else None,
         }
@@ -141,7 +141,7 @@ def load_presentation(presentation_id: str, db: Session) -> Optional[Presentatio
             "pages": pages,
             "total_pages": presentation.total_pages,
             "version": presentation.version,
-            "metadata": presentation.metadata or {},
+            "metadata": presentation.pres_metadata or {},
             "created_at": presentation.created_at.isoformat() if presentation.created_at else None,
             "updated_at": presentation.updated_at.isoformat() if presentation.updated_at else None,
         }
@@ -196,13 +196,18 @@ def update_presentation(
         ).all()
         
         if current_pages:
+            # Extract user_request from metadata
+            old_user_request = None
+            if current_presentation.pres_metadata:
+                old_user_request = current_presentation.pres_metadata.get("user_request")
+            
             # Create archived version record
             archived_version = PresentationVersion(
                 presentation_id=presentation_id,
                 version=current_version,
                 topic=current_presentation.topic,
                 total_pages=current_presentation.total_pages,
-                metadata=current_presentation.metadata
+                user_request=old_user_request
             )
             db.add(archived_version)
             db.flush()
@@ -226,7 +231,7 @@ def update_presentation(
         current_presentation.topic = presentation["topic"]
         current_presentation.total_pages = presentation["total_pages"]
         current_presentation.version = new_version
-        current_presentation.metadata = {"user_request": user_request}
+        current_presentation.pres_metadata = {"user_request": user_request}
         
         # Insert new pages
         for page in pages:
@@ -247,7 +252,7 @@ def update_presentation(
             "topic": current_presentation.topic,
             "total_pages": current_presentation.total_pages,
             "version": current_presentation.version,
-            "metadata": current_presentation.metadata,
+            "metadata": current_presentation.pres_metadata,
             "created_at": current_presentation.created_at.isoformat() if current_presentation.created_at else None,
             "updated_at": current_presentation.updated_at.isoformat() if current_presentation.updated_at else None,
         }
@@ -296,7 +301,7 @@ def get_presentation_versions(presentation_id: str, db: Session) -> List[Present
                 "total_pages": presentation.total_pages,
                 "is_current": True,
                 "created_at": presentation.updated_at.isoformat() if presentation.updated_at else None,
-                "user_request": presentation.metadata.get("user_request") if presentation.metadata else None,
+                "user_request": presentation.pres_metadata.get("user_request") if presentation.pres_metadata else None,
             }
         )
         
@@ -308,7 +313,7 @@ def get_presentation_versions(presentation_id: str, db: Session) -> List[Present
                     "total_pages": v.total_pages,
                     "is_current": False,
                     "created_at": v.created_at.isoformat() if v.created_at else None,
-                    "user_request": v.metadata.get("user_request") if v.metadata else None,
+                    "user_request": v.user_request,
                 }
             )
         
@@ -490,7 +495,7 @@ def list_presentations(conversation_id: str, db: Session) -> List[PresentationDi
                     "topic": p.topic,
                     "total_pages": p.total_pages,
                     "version": p.version,
-                    "metadata": p.metadata,
+                    "metadata": p.pres_metadata,
                     "created_at": p.created_at.isoformat() if p.created_at else None,
                     "updated_at": p.updated_at.isoformat() if p.updated_at else None,
                 }

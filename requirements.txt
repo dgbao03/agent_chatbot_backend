@@ -4,6 +4,7 @@ llama-index-llms-openai
 
 # Data validation
 pydantic
+email-validator
 
 # Environment variables
 python-dotenv
@@ -33,6 +34,7 @@ sqlalchemy
 uvicorn[standard]
 psycopg2-binary
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 python-multipart
 pydantic-settings
+email-validator
