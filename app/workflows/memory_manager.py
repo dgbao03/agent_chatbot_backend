@@ -16,8 +16,9 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
         ctx: Workflow context
         memory: ChatMemoryBuffer cần xử lý
     """
-    # Get conversation_id from context
+    # Get conversation_id and db from context
     conversation_id = await ctx.store.get("conversation_id")
+    db = await ctx.store.get("db")
     
     all_messages = memory.get_all()
     truncated_messages_list = memory.get()
@@ -59,7 +60,7 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
         messages_to_summarize, messages_to_keep = split_messages_for_summary(all_messages, is_empty_truncated)
         
         # Tạo summary
-        summary_text = await create_summary(conversation_id, messages_to_summarize)
+        summary_text = await create_summary(conversation_id, messages_to_summarize, db)
         
         # Mark messages as summarized in DB (set is_in_working_memory = FALSE)
         message_ids_to_summarize = []
@@ -69,7 +70,7 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
                 message_ids_to_summarize.append(msg_id)
         
         if message_ids_to_summarize:
-            mark_messages_as_summarized(message_ids_to_summarize)
+            mark_messages_as_summarized(message_ids_to_summarize, db)
         
         # Tạo memory mới
         if messages_to_keep:

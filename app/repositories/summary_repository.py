@@ -2,108 +2,120 @@
 Summary repository - Data access layer for conversation summaries.
 """
 from datetime import datetime, timezone
-from app.database.client import get_supabase_client
+from typing import List
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from app.models import ConversationSummary, Message, Conversation
 from app.config.types import SummaryDict
+from app.auth.context import get_current_user_id
 
 
-def load_summary(conversation_id: str) -> SummaryDict:
+def load_summary(conversation_id: str, db: Session) -> SummaryDict:
     """
-    Load chat summary from Supabase for a conversation.
-    Since conversation_id is PRIMARY KEY, there's only 1 row per conversation.
+    Load chat summary from database for a conversation.
+    Gets the latest version summary.
     
     Args:
         conversation_id: UUID of the conversation
+        db: Database session
     
     Returns:
         dict: {"summary_content": str} or {"summary_content": ""} if none
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Query summary for this conversation (conversation_id is PRIMARY KEY, only 1 row)
-        # Use limit(1) instead of maybe_single() to avoid HTTP 406 Not Acceptable
-        response = (
-            supabase.from_("conversation_summaries")
-            .select("summary_content")
-            .eq("conversation_id", conversation_id)
-            .limit(1)
-            .execute()
-        )
+        # Verify conversation belongs to user
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        # Check if response has data
-        if not response.data or len(response.data) == 0:
+        if not conversation:
+            return {"summary_content": ""}
+        
+        # Query latest summary (highest version)
+        summary = db.query(ConversationSummary).filter(
+            ConversationSummary.conversation_id == conversation_id
+        ).order_by(ConversationSummary.version.desc()).first()
+        
+        if not summary:
             return {"summary_content": ""}
         
         return {
-            "summary_content": response.data[0].get("summary_content", ""),
+            "summary_content": summary.summary_content or "",
         }
         
     except Exception:
-        return {FIELD_SUMMARY_CONTENT: ""}
+        return {"summary_content": ""}
 
 
-def save_summary(conversation_id: str, summary_content: str) -> bool:
+def save_summary(conversation_id: str, summary_content: str, db: Session) -> bool:
     """
-    Save chat summary to Supabase using UPSERT.
-    Since conversation_id is PRIMARY KEY, this will insert or update the existing row.
+    Save chat summary to database.
+    Creates a new version of the summary.
     
     Args:
         conversation_id: UUID of the conversation
         summary_content: Summary content
+        db: Database session
         
     Returns:
         bool: True if successful
     """
     try:
-        supabase = get_supabase_client()
+        # Get current max version
+        max_version = db.query(func.max(ConversationSummary.version)).filter(
+            ConversationSummary.conversation_id == conversation_id
+        ).scalar()
         
-        # UPSERT: Insert if not exists, update if exists (conversation_id is PRIMARY KEY)
-        response = (
-            supabase.from_("conversation_summaries")
-            .upsert(
-                {
-                    "conversation_id": conversation_id,
-                    "summary_content": summary_content,
-                },
-                on_conflict="conversation_id",
-            )
-            .execute()
+        new_version = (max_version or 0) + 1
+        
+        # Create new summary version
+        summary = ConversationSummary(
+            conversation_id=conversation_id,
+            version=new_version,
+            summary_content=summary_content
         )
         
-        return response.data is not None
+        db.add(summary)
+        db.commit()
+        
+        return True
         
     except Exception:
+        db.rollback()
         return False
 
 
-def mark_messages_as_summarized(message_ids: list[str]) -> bool:
+def mark_messages_as_summarized(message_ids: List[str], db: Session) -> bool:
     """
     Mark messages as summarized (is_in_working_memory = False).
     
     Args:
         message_ids: List of message UUIDs to mark
+        db: Database session
         
     Returns:
         bool: True if successful
     """
     try:
-        supabase = get_supabase_client()
-        
         # Update messages with current UTC timestamp
-        response = (
-            supabase.from_("messages")
-            .update(
-                {
-                    "is_in_working_memory": False,
-                    "summarized_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            .in_("id", message_ids)
-            .execute()
+        db.query(Message).filter(
+            Message.id.in_(message_ids)
+        ).update(
+            {
+                "is_in_working_memory": False,
+                "summarized_at": datetime.now(timezone.utc)
+            },
+            synchronize_session=False
         )
         
+        db.commit()
         return True
         
     except Exception:
+        db.rollback()
         return False
 

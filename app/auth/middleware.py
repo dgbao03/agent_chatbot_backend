@@ -1,7 +1,7 @@
 """
 Authentication middleware for WorkflowServer.
 Verifies JWT tokens from Supabase and stores user_id in context.
-Sets JWT token in Supabase client for RLS protection.
+Creates and manages SQLAlchemy database session.
 """
 import json
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,7 +9,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.datastructures import Headers
 from app.database.client import get_supabase_client
-from app.auth.context import set_current_user_id, set_current_jwt_token
+from app.database.session import SessionLocal
+from app.auth.context import (
+    set_current_user_id, 
+    set_current_jwt_token, 
+    set_current_db_session,
+    clear_current_user_id,
+    clear_current_db_session
+)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -37,6 +44,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Extract token
         token = auth_header.replace("Bearer ", "")
         
+        # Create database session
+        db = SessionLocal()
+        
         try:
             # Verify token with Supabase (use SERVICE_ROLE_KEY temporarily for verification only)
             # Note: We need to verify token first, then set it to client for RLS
@@ -61,17 +71,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
             # Extract user_id from verified JWT
             user_id = user_response.user.id
             
-            # Store user_id and JWT token in context var for workflow to access
+            # Store user_id, JWT token, and db session in context var for workflow to access
             set_current_user_id(user_id)
             set_current_jwt_token(token)
+            set_current_db_session(db)
             
-            # Set JWT token in Supabase client for RLS protection
+            # Set JWT token in Supabase client for RLS protection (temporary, will be removed in future)
             supabase = get_supabase_client(jwt_token=token)
             
             # Also attach to request state
             request.state.user_id = user_id
             request.state.user = user_response.user
             request.state.jwt_token = token
+            request.state.db = db
             
             # Continue to next middleware/route handler
             response = await call_next(request)
@@ -82,4 +94,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"error": f"Authentication failed: {str(e)}"}
             )
+        finally:
+            # Clean up: close db session and clear context
+            db.close()
+            clear_current_user_id()
+            clear_current_db_session()
 

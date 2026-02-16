@@ -14,7 +14,8 @@ from app.repositories.presentation_repository import (
 async def detect_presentation_intent(
     user_input: str,
     conversation_id: str,
-    llm
+    llm,
+    db
 ) -> Tuple[str, Optional[str], Optional[int]]:
     """
     Detect user intent for presentation actions.
@@ -24,14 +25,15 @@ async def detect_presentation_intent(
         user_input: User's request
         conversation_id: UUID of conversation
         llm: LLM instance
+        db: Database session
         
     Returns:
         Tuple of (action, target_presentation_id, target_page_number)
     """
     try:
         # Get presentations list for this conversation
-        presentations = list_presentations(conversation_id)
-        active_id = get_active_presentation(conversation_id)
+        presentations = list_presentations(conversation_id, db)
+        active_id = get_active_presentation(conversation_id, db)
         
         # Build context
         if not presentations:

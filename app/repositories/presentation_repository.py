@@ -2,145 +2,148 @@
 Presentation repository - Data access layer for presentations.
 """
 from typing import Optional, List
-from app.database.client import get_supabase_client
+from sqlalchemy.orm import Session
+from app.models import (
+    Presentation,
+    PresentationPage,
+    PresentationVersion,
+    PresentationVersionPage,
+    Conversation
+)
 from app.config.pydantic_outputs import PageContent
 from app.config.types import (
-    Presentation,
+    Presentation as PresentationDict,
     PresentationWithPages,
-    PresentationVersion,
+    PresentationVersion as PresentationVersionDict,
     VersionContent,
 )
+from app.auth.context import get_current_user_id
 
 
 def create_presentation(
-    presentation: Presentation,
+    presentation: PresentationDict,
     pages: List[PageContent],
-    user_request: str
-) -> Optional[Presentation]:
+    user_request: str,
+    db: Session
+) -> Optional[PresentationDict]:
     """
-    Create new presentation in Supabase.
+    Create new presentation in database.
     
     Args:
-        presentation: Presentation object with conversation_id, topic, total_pages
+        presentation: Presentation dict with conversation_id, topic, total_pages
         pages: List of PageContent objects
         user_request: User's request text
+        db: Database session
         
     Returns:
-        Presentation object with id and created_at set if successful, None otherwise
+        Presentation dict with id and created_at set if successful, None otherwise
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Insert presentation metadata
-        presentation_data = {
-            "conversation_id": presentation["conversation_id"],
-            "topic": presentation["topic"],
-            "total_pages": presentation["total_pages"],
-            "version": presentation.get("version", 1),
-            "metadata": {
-                "user_request": user_request,
-            },
-        }
+        # Verify conversation belongs to user
+        conversation = db.query(Conversation).filter(
+            Conversation.id == presentation["conversation_id"],
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        response = supabase.from_("presentations").insert(presentation_data).execute()
-        
-        if not response.data or len(response.data) == 0:
+        if not conversation:
             return None
         
-        saved_presentation = response.data[0]
-        presentation_id = saved_presentation["id"]
+        # Create presentation
+        new_presentation = Presentation(
+            conversation_id=presentation["conversation_id"],
+            topic=presentation["topic"],
+            total_pages=presentation["total_pages"],
+            version=presentation.get("version", 1),
+            metadata={"user_request": user_request}
+        )
+        
+        db.add(new_presentation)
+        db.flush()  # Get ID without committing
         
         # Insert pages
-        pages_data = []
         for page in pages:
-            pages_data.append(
-                {
-                    "presentation_id": presentation_id,
-                    "page_number": page.page_number,
-                    "html_content": page.html_content,
-                    "page_title": page.page_title,
-                }
+            new_page = PresentationPage(
+                presentation_id=new_presentation.id,
+                page_number=page.page_number,
+                html_content=page.html_content,
+                page_title=page.page_title
             )
+            db.add(new_page)
         
-        if pages_data:
-            supabase.from_("presentation_pages").insert(pages_data).execute()
+        # Set as active presentation
+        conversation.active_presentation_id = new_presentation.id
         
-        # Set as active presentation using RPC
-        supabase.rpc(
-            "set_active_presentation",
-            {
-                "conv_id": presentation["conversation_id"],
-                "p_id": presentation_id,
-            },
-        ).execute()
+        db.commit()
+        db.refresh(new_presentation)
         
         return {
-            "id": saved_presentation["id"],
-            "conversation_id": saved_presentation["conversation_id"],
-            "topic": saved_presentation["topic"],
-            "total_pages": saved_presentation["total_pages"],
-            "version": saved_presentation.get("version", 1),
-            "metadata": saved_presentation.get("metadata", {}),
-            "created_at": saved_presentation.get("created_at"),
-            "updated_at": saved_presentation.get("updated_at"),
+            "id": str(new_presentation.id),
+            "conversation_id": str(new_presentation.conversation_id),
+            "topic": new_presentation.topic,
+            "total_pages": new_presentation.total_pages,
+            "version": new_presentation.version,
+            "metadata": new_presentation.metadata,
+            "created_at": new_presentation.created_at.isoformat() if new_presentation.created_at else None,
+            "updated_at": new_presentation.updated_at.isoformat() if new_presentation.updated_at else None,
         }
         
     except Exception:
+        db.rollback()
         return None
 
 
-def load_presentation(presentation_id: str) -> Optional[PresentationWithPages]:
+def load_presentation(presentation_id: str, db: Session) -> Optional[PresentationWithPages]:
     """
     Load presentation with current version pages.
     
     Args:
         presentation_id: UUID of presentation
+        db: Database session
         
     Returns:
-        PresentationWithPages object with pages included, or None
+        PresentationWithPages dict with pages included, or None
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Get presentation metadata
-        response = (
-            supabase.from_("presentations")
-            .select("*")
-            .eq("id", presentation_id)
-            .execute()
-        )
+        # Get presentation with user authorization check
+        presentation = db.query(Presentation).join(Conversation).filter(
+            Presentation.id == presentation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        if not response.data or len(response.data) == 0:
+        if not presentation:
             return None
         
-        presentation = response.data[0]
-        
-        # Get pages using RPC
-        pages_response = supabase.rpc(
-            "get_presentation_pages", {"p_id": presentation_id}
-        ).execute()
+        # Get pages
+        pages_data = db.query(PresentationPage).filter(
+            PresentationPage.presentation_id == presentation_id
+        ).order_by(PresentationPage.page_number.asc()).all()
         
         pages = []
-        if pages_response.data:
-            for page_data in pages_response.data:
-                pages.append(
-                    PageContent(
-                        page_number=page_data["page_number"],
-                        html_content=page_data["html_content"],
-                        page_title=page_data.get("page_title"),
-                    )
+        for page_data in pages_data:
+            pages.append(
+                PageContent(
+                    page_number=page_data.page_number,
+                    html_content=page_data.html_content,
+                    page_title=page_data.page_title,
                 )
+            )
         
         return {
-            "id": presentation["id"],
-            "conversation_id": presentation["conversation_id"],
-            "topic": presentation["topic"],
+            "id": str(presentation.id),
+            "conversation_id": str(presentation.conversation_id),
+            "topic": presentation.topic,
             "pages": pages,
-            "total_pages": presentation["total_pages"],
-            "version": presentation["version"],
-            "metadata": presentation.get("metadata", {}),
-            "created_at": presentation.get("created_at"),
-            "updated_at": presentation.get("updated_at"),
+            "total_pages": presentation.total_pages,
+            "version": presentation.version,
+            "metadata": presentation.metadata or {},
+            "created_at": presentation.created_at.isoformat() if presentation.created_at else None,
+            "updated_at": presentation.updated_at.isoformat() if presentation.updated_at else None,
         }
         
     except Exception:
@@ -148,133 +151,164 @@ def load_presentation(presentation_id: str) -> Optional[PresentationWithPages]:
 
 
 def update_presentation(
-    presentation: Presentation,
+    presentation: PresentationDict,
     pages: List[PageContent],
-    user_request: str
-) -> Optional[Presentation]:
+    user_request: str,
+    db: Session
+) -> Optional[PresentationDict]:
     """
     Update presentation (archives current version, then updates).
     
     Args:
-        presentation: Presentation object with id, topic, total_pages
+        presentation: Presentation dict with id, topic, total_pages
         pages: New list of PageContent objects
         user_request: User's request text
+        db: Database session
         
     Returns:
-        Presentation object with updated version if successful, None otherwise
+        Presentation dict with updated version if successful, None otherwise
     """
     try:
-        supabase = get_supabase_client()
         presentation_id = presentation["id"]
         
         if not presentation_id:
             return None
         
-        # Get current version
-        current_presentation = (
-            supabase.from_("presentations")
-            .select("version")
-            .eq("id", presentation_id)
-            .execute()
-        )
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        if not current_presentation.data or len(current_presentation.data) == 0:
+        # Get current presentation with user authorization
+        current_presentation = db.query(Presentation).join(Conversation).filter(
+            Presentation.id == presentation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
+        
+        if not current_presentation:
             return None
         
-        current_version = current_presentation.data[0]["version"]
+        current_version = current_presentation.version
         new_version = current_version + 1
         
-        # Archive current version using RPC (returns version_id UUID)
-        archive_response = supabase.rpc(
-            "archive_presentation_version", {"p_id": presentation_id}
-        ).execute()
+        # Archive current version
+        # Get current pages
+        current_pages = db.query(PresentationPage).filter(
+            PresentationPage.presentation_id == presentation_id
+        ).all()
         
-        if not archive_response.data:
-            # Archive returned no version_id; continue with update
-            pass
+        if current_pages:
+            # Create archived version record
+            archived_version = PresentationVersion(
+                presentation_id=presentation_id,
+                version=current_version,
+                topic=current_presentation.topic,
+                total_pages=current_presentation.total_pages,
+                metadata=current_presentation.metadata
+            )
+            db.add(archived_version)
+            db.flush()
+            
+            # Archive pages
+            for page in current_pages:
+                archived_page = PresentationVersionPage(
+                    version_id=archived_version.id,
+                    page_number=page.page_number,
+                    html_content=page.html_content,
+                    page_title=page.page_title
+                )
+                db.add(archived_page)
         
         # Delete old pages (will be replaced)
-        supabase.from_("presentation_pages").delete().eq(
-            "presentation_id", presentation_id
-        ).execute()
+        db.query(PresentationPage).filter(
+            PresentationPage.presentation_id == presentation_id
+        ).delete()
         
         # Update presentation metadata
-        update_response = supabase.from_("presentations").update(
-            {
-                "topic": presentation["topic"],
-                "total_pages": presentation["total_pages"],
-                "version": new_version,
-                "metadata": {
-                    "user_request": user_request,
-                },
-            }
-        ).eq("id", presentation_id).execute()
-        
-        if not update_response.data or len(update_response.data) == 0:
-            return None
+        current_presentation.topic = presentation["topic"]
+        current_presentation.total_pages = presentation["total_pages"]
+        current_presentation.version = new_version
+        current_presentation.metadata = {"user_request": user_request}
         
         # Insert new pages
-        pages_data = []
         for page in pages:
-            pages_data.append(
-                {
-                    "presentation_id": presentation_id,
-                    "page_number": page.page_number,
-                    "html_content": page.html_content,
-                    "page_title": page.page_title,
-                }
+            new_page = PresentationPage(
+                presentation_id=presentation_id,
+                page_number=page.page_number,
+                html_content=page.html_content,
+                page_title=page.page_title
             )
+            db.add(new_page)
         
-        if pages_data:
-            supabase.from_("presentation_pages").insert(pages_data).execute()
+        db.commit()
+        db.refresh(current_presentation)
         
-        updated_presentation = update_response.data[0]
         return {
-            "id": updated_presentation["id"],
-            "conversation_id": updated_presentation["conversation_id"],
-            "topic": updated_presentation["topic"],
-            "total_pages": updated_presentation["total_pages"],
-            "version": updated_presentation["version"],
-            "metadata": updated_presentation.get("metadata", {}),
-            "created_at": updated_presentation.get("created_at"),
-            "updated_at": updated_presentation.get("updated_at"),
+            "id": str(current_presentation.id),
+            "conversation_id": str(current_presentation.conversation_id),
+            "topic": current_presentation.topic,
+            "total_pages": current_presentation.total_pages,
+            "version": current_presentation.version,
+            "metadata": current_presentation.metadata,
+            "created_at": current_presentation.created_at.isoformat() if current_presentation.created_at else None,
+            "updated_at": current_presentation.updated_at.isoformat() if current_presentation.updated_at else None,
         }
         
     except Exception:
+        db.rollback()
         return None
 
 
-def get_presentation_versions(presentation_id: str) -> List[PresentationVersion]:
+def get_presentation_versions(presentation_id: str, db: Session) -> List[PresentationVersionDict]:
     """
     Get all versions metadata for a presentation.
     
     Args:
         presentation_id: UUID of presentation
+        db: Database session
         
     Returns:
-        List of PresentationVersion objects
+        List of PresentationVersion dicts
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Use RPC to get versions
-        response = supabase.rpc(
-            "get_presentation_versions", {"p_id": presentation_id}
-        ).execute()
+        # Verify presentation belongs to user
+        presentation = db.query(Presentation).join(Conversation).filter(
+            Presentation.id == presentation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        if not response.data:
+        if not presentation:
             return []
         
+        # Get archived versions
+        archived_versions = db.query(PresentationVersion).filter(
+            PresentationVersion.presentation_id == presentation_id
+        ).order_by(PresentationVersion.version.desc()).all()
+        
         # Convert to expected format
-        versions: List[PresentationVersion] = []
-        for v in response.data:
+        versions: List[PresentationVersionDict] = []
+        
+        # Add current version
+        versions.append(
+            {
+                "version": presentation.version,
+                "total_pages": presentation.total_pages,
+                "is_current": True,
+                "created_at": presentation.updated_at.isoformat() if presentation.updated_at else None,
+                "user_request": presentation.metadata.get("user_request") if presentation.metadata else None,
+            }
+        )
+        
+        # Add archived versions
+        for v in archived_versions:
             versions.append(
                 {
-                    "version": v["version"],
-                    "total_pages": v.get("total_pages", 0),
-                    "is_current": v["is_current"],
-                    "created_at": v["created_at"],
-                    "user_request": v.get("user_request"),
+                    "version": v.version,
+                    "total_pages": v.total_pages,
+                    "is_current": False,
+                    "created_at": v.created_at.isoformat() if v.created_at else None,
+                    "user_request": v.metadata.get("user_request") if v.metadata else None,
                 }
             )
         
@@ -284,55 +318,62 @@ def get_presentation_versions(presentation_id: str) -> List[PresentationVersion]
         return []
 
 
-def get_version_content(presentation_id: str, version: int) -> Optional[VersionContent]:
+def get_version_content(presentation_id: str, version: int, db: Session) -> Optional[VersionContent]:
     """
     Get pages content of a specific version.
     
     Args:
         presentation_id: UUID of presentation
         version: Version number
+        db: Database session
         
     Returns:
-        VersionContent object with pages and total_pages, or None
+        VersionContent dict with pages and total_pages, or None
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Check if requested version is current version
-        presentation = (
-            supabase.from_("presentations")
-            .select("version, total_pages")
-            .eq("id", presentation_id)
-            .execute()
-        )
+        # Get presentation with user authorization
+        presentation = db.query(Presentation).join(Conversation).filter(
+            Presentation.id == presentation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        if not presentation.data or len(presentation.data) == 0:
+        if not presentation:
             return None
         
-        current_version = presentation.data[0]["version"]
+        current_version = presentation.version
         
         # If requesting current version, load from presentation_pages
         if version == current_version:
-            pages_response = supabase.rpc(
-                "get_presentation_pages", {"p_id": presentation_id}
-            ).execute()
+            pages_data = db.query(PresentationPage).filter(
+                PresentationPage.presentation_id == presentation_id
+            ).order_by(PresentationPage.page_number.asc()).all()
         else:
             # Otherwise load from archived versions
-            pages_response = supabase.rpc(
-                "get_version_pages",
-                {"p_id": presentation_id, "v_num": version},
-            ).execute()
+            archived_version = db.query(PresentationVersion).filter(
+                PresentationVersion.presentation_id == presentation_id,
+                PresentationVersion.version == version
+            ).first()
+            
+            if not archived_version:
+                return None
+            
+            pages_data = db.query(PresentationVersionPage).filter(
+                PresentationVersionPage.version_id == archived_version.id
+            ).order_by(PresentationVersionPage.page_number.asc()).all()
         
-        if not pages_response.data:
+        if not pages_data:
             return None
         
         pages = []
-        for page_data in pages_response.data:
+        for page_data in pages_data:
             pages.append(
                 PageContent(
-                    page_number=page_data["page_number"],
-                    html_content=page_data["html_content"],
-                    page_title=page_data.get("page_title"),
+                    page_number=page_data.page_number,
+                    html_content=page_data.html_content,
+                    page_title=page_data.page_title,
                 )
             )
         
@@ -342,96 +383,116 @@ def get_version_content(presentation_id: str, version: int) -> Optional[VersionC
         return None
 
 
-def get_active_presentation(conversation_id: str) -> Optional[str]:
+def get_active_presentation(conversation_id: str, db: Session) -> Optional[str]:
     """
     Get active presentation ID for a conversation.
     
     Args:
         conversation_id: UUID of conversation
+        db: Database session
         
     Returns:
         presentation_id or None
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Use RPC to get active presentation
-        response = supabase.rpc(
-            "get_active_presentation", {"conv_id": conversation_id}
-        ).execute()
+        # Get conversation with user authorization
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        # RPC returns UUID directly
-        return response.data if response.data else None
+        if not conversation or not conversation.active_presentation_id:
+            return None
+        
+        return str(conversation.active_presentation_id)
         
     except Exception:
         return None
 
 
-def set_active_presentation(conversation_id: str, presentation_id: str) -> bool:
+def set_active_presentation(conversation_id: str, presentation_id: str, db: Session) -> bool:
     """
     Set active presentation for a conversation.
     
     Args:
         conversation_id: UUID of conversation
         presentation_id: UUID of presentation
+        db: Database session
         
     Returns:
         True if successful
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        # Use RPC to set active presentation
-        supabase.rpc(
-            "set_active_presentation",
-            {
-                "conv_id": conversation_id,
-                "p_id": presentation_id,
-            },
-        ).execute()
+        # Get conversation with user authorization
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
+        
+        if not conversation:
+            return False
+        
+        # Set active presentation
+        conversation.active_presentation_id = presentation_id
+        db.commit()
         
         return True
         
     except Exception:
+        db.rollback()
         return False
 
 
-def list_presentations(conversation_id: str) -> List[Presentation]:
+def list_presentations(conversation_id: str, db: Session) -> List[PresentationDict]:
     """
     List all presentations for a conversation.
     
     Args:
         conversation_id: UUID of conversation
+        db: Database session
         
     Returns:
-        List of Presentation objects (without pages)
+        List of Presentation dicts (without pages)
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        response = (
-            supabase.from_("presentations")
-            .select("id, conversation_id, topic, total_pages, version, metadata, created_at, updated_at")
-            .eq("conversation_id", conversation_id)
-            .order("created_at", desc=True)
-            .execute()
-        )
+        # Verify conversation belongs to user
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        if not response.data:
+        if not conversation:
             return []
         
-        presentations: List[Presentation] = []
-        for p in response.data:
+        # Get presentations
+        presentations_data = db.query(Presentation).filter(
+            Presentation.conversation_id == conversation_id
+        ).order_by(Presentation.created_at.desc()).all()
+        
+        if not presentations_data:
+            return []
+        
+        presentations: List[PresentationDict] = []
+        for p in presentations_data:
             presentations.append(
                 {
-                    "id": p["id"],
-                    "conversation_id": p["conversation_id"],
-                    "topic": p["topic"],
-                    "total_pages": p["total_pages"],
-                    "version": p["version"],
-                    "metadata": p.get("metadata"),
-                    "created_at": p.get("created_at"),
-                    "updated_at": p.get("updated_at"),
+                    "id": str(p.id),
+                    "conversation_id": str(p.conversation_id),
+                    "topic": p.topic,
+                    "total_pages": p.total_pages,
+                    "version": p.version,
+                    "metadata": p.metadata,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else None,
                 }
             )
         

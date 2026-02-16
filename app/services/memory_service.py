@@ -98,20 +98,21 @@ def split_messages_for_summary(
     return messages_to_summarize, messages_to_keep
 
 
-async def create_summary(conversation_id: str, messages: List[ChatMessage]) -> str:
+async def create_summary(conversation_id: str, messages: List[ChatMessage], db) -> str:
     """
     Tạo summary từ messages, kết hợp với summary cũ nếu có.
     
     Args:
         conversation_id: UUID of the conversation
         messages: List of ChatMessage objects from LlamaIndex memory to summarize
+        db: Database session
         
     Returns:
         str: Summary text
     """
     try:
         # Load summary cũ
-        old_summary_data = load_summary(conversation_id)
+        old_summary_data = load_summary(conversation_id, db)
         old_summary = old_summary_data.get("summary_content", "")
         
         # Format messages mới
@@ -147,8 +148,8 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage]) -> s
         else:
             summary_text = str(response)
         
-        # Lưu summary mới (UPSERT sẽ replace summary cũ)
-        save_summary(conversation_id, summary_text)
+        # Lưu summary mới (creates new version)
+        save_summary(conversation_id, summary_text, db)
         
         return summary_text
         

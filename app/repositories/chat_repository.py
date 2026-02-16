@@ -2,101 +2,108 @@
 Chat history repository - Data access layer for messages.
 """
 from typing import Optional, List
-from app.database.client import get_supabase_client
-from app.config.types import Message
+from sqlalchemy.orm import Session
+from app.models import Message, Conversation
+from app.config.types import Message as MessageDict
+from app.auth.context import get_current_user_id
 
 
-def load_chat_history(conversation_id: str) -> List[Message]:
+def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
     """
-    Load working memory messages from Supabase for a conversation.
+    Load working memory messages from database for a conversation.
     Returns list of messages in working memory, ordered by created_at.
     
     Args:
         conversation_id: UUID of the conversation
+        db: Database session
         
     Returns:
-        List of Message objects with all fields populated (id, conversation_id, role, content, etc.)
+        List of Message dicts with all fields populated (id, conversation_id, role, content, etc.)
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
+        
+        # Verify conversation belongs to user (security check)
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
+        
+        if not conversation:
+            return []
         
         # Query messages in working memory for this conversation
-        response = (
-            supabase.from_("messages")
-            .select("*")
-            .eq("conversation_id", conversation_id)
-            .eq("is_in_working_memory", True)
-            .order("created_at", desc=False)
-            .execute()
-        )
+        messages = db.query(Message).filter(
+            Message.conversation_id == conversation_id,
+            Message.is_in_working_memory == True
+        ).order_by(Message.created_at.asc()).all()
         
-        if not response.data:
+        if not messages:
             return []
 
-        # Convert to simple format for LlamaIndex
-        messages: List[Message] = []
-        for msg in response.data:
-            messages.append(
+        # Convert to dict format
+        result: List[MessageDict] = []
+        for msg in messages:
+            result.append(
                 {
-                    "id": msg["id"],
-                    "conversation_id": msg["conversation_id"],
-                    "role": msg["role"],
-                    "content": msg["content"],
-                    "intent": msg.get("intent"),
-                    "is_in_working_memory": msg.get("is_in_working_memory", True),
-                    "summarized_at": msg.get("summarized_at"),
-                    "metadata": msg.get("metadata"),
-                    "created_at": msg["created_at"],
+                    "id": str(msg.id),
+                    "conversation_id": str(msg.conversation_id),
+                    "role": msg.role,
+                    "content": msg.content,
+                    "intent": msg.intent,
+                    "is_in_working_memory": msg.is_in_working_memory,
+                    "summarized_at": msg.summarized_at.isoformat() if msg.summarized_at else None,
+                    "metadata": msg.metadata,
+                    "created_at": msg.created_at.isoformat() if msg.created_at else None,
                 }
             )
         
-        return messages
+        return result
         
     except Exception:
         return []
 
 
-def save_message(message: Message) -> Optional[Message]:
+def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
     """
-    Save a new message to Supabase.
+    Save a new message to database.
     
     Args:
-        message: Message object with conversation_id, role, content, intent (optional), metadata (optional)
+        message: Message dict with conversation_id, role, content, intent (optional), metadata (optional)
+        db: Database session
         
     Returns:
-        Message object with id and created_at set if successful, None if failed
+        Message dict with id and created_at set if successful, None if failed
     """
     try:
-        supabase = get_supabase_client()
+        # Create new message
+        new_message = Message(
+            conversation_id=message["conversation_id"],
+            role=message["role"],
+            content=message["content"],
+            intent=message.get("intent"),
+            metadata=message.get("metadata"),
+            is_in_working_memory=message.get("is_in_working_memory", True)
+        )
         
-        # Extract fields from message object
-        message_data = {
-            "conversation_id": message["conversation_id"],
-            "role": message["role"],
-            "content": message["content"],
-            "intent": message.get("intent"),
-            "metadata": message.get("metadata"),
-            "is_in_working_memory": message.get("is_in_working_memory", True),  # Default to True for new messages
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
+        
+        return {
+            "id": str(new_message.id),
+            "conversation_id": str(new_message.conversation_id),
+            "role": new_message.role,
+            "content": new_message.content,
+            "intent": new_message.intent,
+            "is_in_working_memory": new_message.is_in_working_memory,
+            "summarized_at": new_message.summarized_at.isoformat() if new_message.summarized_at else None,
+            "metadata": new_message.metadata,
+            "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
         }
         
-        response = supabase.from_("messages").insert(message_data).execute()
-        
-        if response.data and len(response.data) > 0:
-            saved_msg = response.data[0]
-            return {
-                "id": saved_msg["id"],
-                "conversation_id": saved_msg["conversation_id"],
-                "role": saved_msg["role"],
-                "content": saved_msg["content"],
-                "intent": saved_msg.get("intent"),
-                "is_in_working_memory": saved_msg.get("is_in_working_memory", True),
-                "summarized_at": saved_msg.get("summarized_at"),
-                "metadata": saved_msg.get("metadata"),
-                "created_at": saved_msg.get("created_at"),
-            }
-        else:
-            return None
-        
     except Exception:
+        db.rollback()
         return None
 

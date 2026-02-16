@@ -1,10 +1,11 @@
 """
 Chat service - Business logic for chat orchestration.
 """
-from app.database.client import get_supabase_client
+from sqlalchemy.orm import Session
+from app.models import Conversation
 
 
-def validate_conversation_access(user_id: str, conversation_id: str) -> None:
+def validate_conversation_access(user_id: str, conversation_id: str, db: Session) -> None:
     """
     Validate that user has access to the conversation.
     Raises ValueError if access is denied.
@@ -12,28 +13,21 @@ def validate_conversation_access(user_id: str, conversation_id: str) -> None:
     Args:
         user_id: UUID of the user
         conversation_id: UUID of the conversation
+        db: Database session
         
     Raises:
         ValueError: If conversation not found or user doesn't have access
     """
     try:
-        supabase = get_supabase_client()
-        conversation_response = (
-            supabase.from_("conversations")
-            .select("user_id")
-            .eq("id", conversation_id)
-            .maybe_single()
-            .execute()
-        )
+        # Query conversation with user_id filter
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id
+        ).first()
         
-        if not conversation_response.data:
-            raise ValueError(f"Conversation {conversation_id} not found.")
-        
-        conversation_owner_id = conversation_response.data.get("user_id")
-        if conversation_owner_id != user_id:
-            raise ValueError(
-                "Access denied: You can only access your own conversations."
-            )
+        if not conversation:
+            raise ValueError(f"Conversation {conversation_id} not found or access denied.")
+            
     except ValueError:
         raise
     except Exception:

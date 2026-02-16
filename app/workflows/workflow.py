@@ -31,7 +31,7 @@ from app.repositories.presentation_repository import (
 from app.utils.formatters import format_user_facts_for_prompt
 from app.utils.title_generator import generate_conversation_title
 from app.tools import registry
-from app.auth.context import get_current_user_id
+from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
 from app.workflows.memory_manager import process_memory_truncation
@@ -71,6 +71,12 @@ class ChatWorkflow(Workflow):
         user_input = ev.get("user_input")
         conversation_id = ev.get("conversation_id")
         
+        # Get db session from ContextVar (set by AuthMiddleware)
+        db = get_current_db_session()
+        
+        # Store db in context for other steps
+        await ctx.store.set("db", db)
+        
         # Security check system prompt
         system_prompt = SECURITY_CHECK_PROMPT
 
@@ -100,24 +106,24 @@ class ChatWorkflow(Workflow):
                 
                 if is_new_conversation:
                     # Create new conversation
-                    conversation_id = create_new_conversation(user_id)
+                    conversation_id = create_new_conversation(user_id, db)
                     new_conv_id = conversation_id
                     
                     # Generate title from user input
                     try:
                         title = generate_conversation_title(user_input)
-                        update_conversation_title(conversation_id, title)
+                        update_conversation_title(conversation_id, title, db)
                         new_conv_title = title
                     except Exception as e:
                         # Fallback: use truncated user input
                         title = user_input[:60].strip()
                         if len(user_input) > 60:
                             title += "..."
-                        update_conversation_title(conversation_id, title)
+                        update_conversation_title(conversation_id, title, db)
                         new_conv_title = title
                 else:
                     # Validate conversation ownership for existing conversation
-                    validate_conversation_access(user_id, conversation_id)
+                    validate_conversation_access(user_id, conversation_id, db)
                 
                 # Save user message
                 user_message: Message = {
@@ -127,7 +133,7 @@ class ChatWorkflow(Workflow):
                     "intent": None,
                     "metadata": {},
                 }
-                save_message(user_message)
+                save_message(user_message, db)
                 
                 # Save assistant rejection message
                 assistant_message: Message = {
@@ -137,7 +143,7 @@ class ChatWorkflow(Workflow):
                     "intent": "GENERAL",  # Use GENERAL intent (SYSTEM_EXPLOIT not allowed in DB)
                     "metadata": {"security_classification": "EXPLOIT"},  # Store in metadata instead
                 }
-                save_message(assistant_message)
+                save_message(assistant_message, db)
                 
                 # Prepare response
                 response_result = {
@@ -175,6 +181,9 @@ class ChatWorkflow(Workflow):
         user_input = ev.user_input
         conversation_id = ev.conversation_id
         
+        # Get db session from context (stored in security_check)
+        db = await ctx.store.get("db")
+        
         # Get user_id from context var (set by Auth middleware)
         user_id = get_current_user_id()
         
@@ -191,24 +200,24 @@ class ChatWorkflow(Workflow):
         
         if is_new_conversation:
             # Create new conversation
-            conversation_id = create_new_conversation(user_id)
+            conversation_id = create_new_conversation(user_id, db)
             new_conv_id = conversation_id
             
             # Generate title from user input
             try:
                 title = generate_conversation_title(user_input)
-                update_conversation_title(conversation_id, title)
+                update_conversation_title(conversation_id, title, db)
                 new_conv_title = title
             except Exception as e:
                 # Fallback: use truncated user input
                 title = user_input[:60].strip()
                 if len(user_input) > 60:
                     title += "..."
-                update_conversation_title(conversation_id, title)
+                update_conversation_title(conversation_id, title, db)
                 new_conv_title = title
         else:
             # ✅ Validate conversation ownership (fail early before processing)
-            validate_conversation_access(user_id, conversation_id)
+            validate_conversation_access(user_id, conversation_id, db)
 
         # Store user_id and conversation_id in context for later use
         await ctx.store.set("user_id", user_id)
@@ -217,7 +226,7 @@ class ChatWorkflow(Workflow):
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
 
         # Load chat history for this conversation
-        chat_history = load_chat_history(conversation_id)
+        chat_history = load_chat_history(conversation_id, db)
 
         # Memory
         memory = ChatMemoryBuffer.from_defaults(token_limit=200)
@@ -256,7 +265,7 @@ class ChatWorkflow(Workflow):
             system_content += "\n\n" + history_text
         
         # Load và thêm chat summary nếu có (sau Chat History)
-        summary_data = load_summary(conversation_id)
+        summary_data = load_summary(conversation_id, db)
         if summary_data.get("summary_content"):
             summary_text = (
                 "\n===== CONVERSATION SUMMARY =====\n"
@@ -281,7 +290,7 @@ class ChatWorkflow(Workflow):
             "intent": None,
             "metadata": {},
         }
-        saved_user_msg = save_message(user_message)
+        saved_user_msg = save_message(user_message, db)
         user_msg_id = saved_user_msg["id"] if saved_user_msg else None
         
         # Put into memory with ID from DB
@@ -343,7 +352,7 @@ class ChatWorkflow(Workflow):
                 "intent": output.intent,
                 "metadata": {},
             }
-            saved_assistant_msg = save_message(assistant_message)
+            saved_assistant_msg = save_message(assistant_message, db)
             assistant_msg_id = saved_assistant_msg["id"] if saved_assistant_msg else None
             
             # Put into memory with ID from DB
@@ -386,12 +395,13 @@ class ChatWorkflow(Workflow):
     async def generate_slide(self, ctx: Context, ev: GenerateSlideEvent) -> StopEvent:
         """Slide generation step (merged from SlideWorkflow)."""
         conversation_id = await ctx.store.get("conversation_id")
+        db = await ctx.store.get("db")  # Get db from context
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
 
         try:
             action, target_presentation_id, target_page_number = await detect_presentation_intent(
-                ev.user_input, conversation_id, llm
+                ev.user_input, conversation_id, llm, db
             )
         except Exception:
             return StopEvent(result=error_output.model_dump())
@@ -399,7 +409,7 @@ class ChatWorkflow(Workflow):
         previous_pages = None
         total_pages = None
         if target_presentation_id:
-            presentation_data = load_presentation(target_presentation_id)
+            presentation_data = load_presentation(target_presentation_id, db)
             if presentation_data:
                 previous_pages = presentation_data["pages"]
                 total_pages = presentation_data["total_pages"]
@@ -412,7 +422,7 @@ class ChatWorkflow(Workflow):
                 history_text += f"{msg.role.value}: {msg.content}\n"
             system_content += "\n\n" + history_text
 
-        summary_data = load_summary(conversation_id)
+        summary_data = load_summary(conversation_id, db)
         if summary_data.get("summary_content"):
             summary_text = (
                 "\n===== CONVERSATION SUMMARY =====\n"
@@ -492,6 +502,7 @@ class ChatWorkflow(Workflow):
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
+                    db=db
                 )
                 if not saved_presentation:
                     raise ValueError("Failed to create presentation")
@@ -510,11 +521,12 @@ class ChatWorkflow(Workflow):
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
+                    db=db
                 )
                 if not updated_presentation:
                     raise ValueError("Failed to update presentation")
                 presentation_id = updated_presentation["id"]
-                set_active_presentation(conversation_id, presentation_id)
+                set_active_presentation(conversation_id, presentation_id, db)
         except (ValueError, Exception):
             return StopEvent(result=error_output.model_dump())
 
@@ -531,7 +543,7 @@ class ChatWorkflow(Workflow):
                     "slide_id": presentation_id,
                 },
             }
-            saved_assistant_msg = save_message(assistant_message)
+            saved_assistant_msg = save_message(assistant_message, db)
             assistant_msg_id = saved_assistant_msg["id"] if saved_assistant_msg else None
         except Exception:
             assistant_msg_id = None

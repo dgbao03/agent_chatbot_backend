@@ -1,43 +1,83 @@
 """
-Workflow context manager for sharing user_id and JWT token across tools.
-This allows tools to access user_id and JWT without passing them as parameters.
+Authentication context - User ID and DB session context management.
 """
 from contextvars import ContextVar
 from typing import Optional
 
-# Context variable to store current user_id
-_user_id_var: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
+# Context variable for user_id (replaces RLS in self-hosted DB)
+_current_user_id: ContextVar[Optional[str]] = ContextVar("current_user_id", default=None)
 
-# Context variable to store current JWT token
-_jwt_token_var: ContextVar[Optional[str]] = ContextVar('jwt_token', default=None)
+# Context variable for database session
+_current_db_session: ContextVar[Optional[any]] = ContextVar("current_db_session", default=None)
 
 
 def set_current_user_id(user_id: str) -> None:
-    """Set the current user_id in context."""
-    _user_id_var.set(user_id)
+    """
+    Set current user ID in context.
+    Called by auth middleware/dependency after JWT verification.
+    
+    Args:
+        user_id: UUID of authenticated user
+    """
+    _current_user_id.set(user_id)
 
 
 def get_current_user_id() -> Optional[str]:
-    """Get the current user_id from context."""
-    return _user_id_var.get()
+    """
+    Get current user ID from context.
+    Used by repositories to filter queries (replaces RLS).
+    
+    Returns:
+        user_id or None if not authenticated
+        
+    Raises:
+        ValueError: If no user_id in context (unauthenticated request)
+    """
+    user_id = _current_user_id.get()
+    if not user_id:
+        raise ValueError("No authenticated user in context")
+    return user_id
 
 
 def clear_current_user_id() -> None:
-    """Clear the current user_id from context."""
-    _user_id_var.set(None)
+    """
+    Clear current user ID from context.
+    Called after request completes.
+    """
+    _current_user_id.set(None)
 
 
-def set_current_jwt_token(jwt_token: str) -> None:
-    """Set the current JWT token in context."""
-    _jwt_token_var.set(jwt_token)
+def set_current_db_session(db) -> None:
+    """
+    Set current database session in context.
+    Called by auth middleware after creating db session.
+    
+    Args:
+        db: SQLAlchemy database session
+    """
+    _current_db_session.set(db)
 
 
-def get_current_jwt_token() -> Optional[str]:
-    """Get the current JWT token from context."""
-    return _jwt_token_var.get()
+def get_current_db_session():
+    """
+    Get current database session from context.
+    Used by workflow to access database.
+    
+    Returns:
+        db session or None if not set
+        
+    Raises:
+        ValueError: If no db session in context
+    """
+    db = _current_db_session.get()
+    if not db:
+        raise ValueError("No database session in context")
+    return db
 
 
-def clear_current_jwt_token() -> None:
-    """Clear the current JWT token from context."""
-    _jwt_token_var.set(None)
-
+def clear_current_db_session() -> None:
+    """
+    Clear current database session from context.
+    Called after request completes.
+    """
+    _current_db_session.set(None)

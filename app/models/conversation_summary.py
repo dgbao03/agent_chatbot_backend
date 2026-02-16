@@ -1,15 +1,36 @@
 """
 ConversationSummary Model - SQLAlchemy ORM
-TODO: Implement ConversationSummary table mapping
+Maps to 'conversation_summaries' table
 """
-# from sqlalchemy import Column, String, Text, DateTime, ForeignKey
-# from app.database.session import Base
-# from datetime import datetime
+from sqlalchemy import Column, String, Integer, ForeignKey, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
+from sqlalchemy.orm import relationship
+from app.database.session import Base
 
-# class ConversationSummary(Base):
-#     __tablename__ = "conversation_summaries"
-#     
-#     id = Column(String, primary_key=True)
-#     conversation_id = Column(String, ForeignKey("conversations.id"), unique=True, nullable=False)
-#     summary_text = Column(Text, nullable=False)
-#     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ConversationSummary(Base):
+    __tablename__ = "conversation_summaries"
+    
+    # Primary Key
+    id = Column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    
+    # Foreign Keys
+    conversation_id = Column(UUID, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    
+    # Data
+    version = Column(Integer, nullable=False, server_default="1")
+    summary_content = Column(String, nullable=False)
+    
+    # Timestamp
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    
+    # Relationships
+    conversation = relationship("Conversation", back_populates="summaries")
+    
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'version', name='uq_conversation_summary_version'),
+    )
+    
+    def __repr__(self):
+        return f"<ConversationSummary(id={self.id}, conversation_id={self.conversation_id}, version={self.version})>"

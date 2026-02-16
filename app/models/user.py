@@ -1,15 +1,41 @@
 """
 User Model - SQLAlchemy ORM
-TODO: Implement User table mapping for authentication
+Maps to 'users' table for authentication
 """
-# from sqlalchemy import Column, String, DateTime
-# from app.database.session import Base
-# from datetime import datetime
+from sqlalchemy import Column, String, Boolean, text
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
+from sqlalchemy.orm import relationship
+from app.database.session import Base
 
-# class User(Base):
-#     __tablename__ = "users"
-#     
-#     id = Column(String, primary_key=True)
-#     email = Column(String, unique=True, nullable=False)
-#     hashed_password = Column(String, nullable=False)
-#     created_at = Column(DateTime, default=datetime.utcnow)
+
+class User(Base):
+    __tablename__ = "users"
+    
+    # Primary Key
+    id = Column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    
+    # Authentication
+    email = Column(String(255), unique=True, nullable=False)
+    hashed_password = Column(String(255), nullable=True)  # Nullable for OAuth users
+    
+    # Profile
+    name = Column(String(255), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+    
+    # OAuth
+    provider = Column(String(50), nullable=False, server_default="email")
+    provider_user_id = Column(String(255), nullable=True)
+    
+    # Email verification
+    email_verified = Column(Boolean, nullable=False, server_default="false")
+    
+    # Timestamps
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    
+    # Relationships
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+    user_facts = relationship("UserFact", back_populates="user", cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, provider={self.provider})>"

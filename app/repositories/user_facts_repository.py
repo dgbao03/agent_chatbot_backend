@@ -2,120 +2,134 @@
 User facts repository - Data access layer for user facts.
 """
 from typing import List, Optional
-from app.database.client import get_supabase_client
-from app.config.types import UserFact
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from app.models import UserFact
+from app.config.types import UserFact as UserFactDict
 
 
-def load_user_facts(user_id: str) -> List[UserFact]:
+def load_user_facts(user_id: str, db: Session) -> List[UserFactDict]:
     """
-    Load user facts from Supabase.
+    Load user facts from database.
     
     Args:
         user_id: UUID of the user
+        db: Database session
         
     Returns:
-        List of UserFact objects with all fields populated (id, user_id, key, value, created_at, updated_at)
+        List of UserFact dicts with all fields populated (id, user_id, key, value, created_at, updated_at)
     """
     try:
-        supabase = get_supabase_client()
+        # Query user facts (automatically filtered by user_id)
+        facts = db.query(UserFact).filter(
+            UserFact.user_id == user_id
+        ).order_by(UserFact.key.asc()).all()
         
-        # Query user facts
-        response = (
-            supabase.from_("user_facts")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("key", desc=False)
-            .execute()
-        )
-        
-        if not response.data:
+        if not facts:
             return []
         
-        # Convert to simple format
-        facts: List[UserFact] = []
-        for fact in response.data:
-            facts.append(
+        # Convert to dict format
+        result: List[UserFactDict] = []
+        for fact in facts:
+            result.append(
                 {
-                    "id": fact["id"],
-                    "user_id": fact["user_id"],
-                    "key": fact["key"],
-                    "value": fact["value"],
-                    "created_at": fact.get("created_at"),
-                    "updated_at": fact.get("updated_at"),
+                    "id": str(fact.id),
+                    "user_id": str(fact.user_id),
+                    "key": fact.key,
+                    "value": fact.value,
+                    "created_at": fact.created_at.isoformat() if fact.created_at else None,
+                    "updated_at": fact.updated_at.isoformat() if fact.updated_at else None,
                 }
             )
         
-        return facts
+        return result
         
     except Exception:
         return []
 
 
-def upsert_user_fact(fact: UserFact) -> Optional[UserFact]:
+def upsert_user_fact(fact: UserFactDict, db: Session) -> Optional[UserFactDict]:
     """
-    Insert or update a user fact in Supabase.
+    Insert or update a user fact in database.
     
     Args:
-        fact: UserFact object with user_id, key, value
+        fact: UserFact dict with user_id, key, value
+        db: Database session
         
     Returns:
-        UserFact object with id, created_at, updated_at set if successful, None otherwise
+        UserFact dict with id, created_at, updated_at set if successful, None otherwise
     """
     try:
-        supabase = get_supabase_client()
+        # Check if fact exists
+        existing_fact = db.query(UserFact).filter(
+            UserFact.user_id == fact["user_id"],
+            UserFact.key == fact["key"]
+        ).first()
         
-        # Upsert fact (insert or update based on user_id + key unique constraint)
-        response = (
-            supabase.from_("user_facts")
-            .upsert(
-                {
-                    "user_id": fact["user_id"],
-                    "key": fact["key"],
-                    "value": fact["value"],
-                },
-                on_conflict="user_id,key",
+        if existing_fact:
+            # Update existing fact
+            existing_fact.value = fact["value"]
+            existing_fact.updated_at = func.now()
+            db.commit()
+            db.refresh(existing_fact)
+            
+            return {
+                "id": str(existing_fact.id),
+                "user_id": str(existing_fact.user_id),
+                "key": existing_fact.key,
+                "value": existing_fact.value,
+                "created_at": existing_fact.created_at.isoformat() if existing_fact.created_at else None,
+                "updated_at": existing_fact.updated_at.isoformat() if existing_fact.updated_at else None,
+            }
+        else:
+            # Insert new fact
+            new_fact = UserFact(
+                user_id=fact["user_id"],
+                key=fact["key"],
+                value=fact["value"]
             )
-            .execute()
-        )
-        
-        if not response.data or len(response.data) == 0:
-            return None
-        
-        saved_fact = response.data[0]
-        return {
-            "id": saved_fact["id"],
-            "user_id": saved_fact["user_id"],
-            "key": saved_fact["key"],
-            "value": saved_fact["value"],
-            "created_at": saved_fact.get("created_at"),
-            "updated_at": saved_fact.get("updated_at"),
-        }
+            
+            db.add(new_fact)
+            db.commit()
+            db.refresh(new_fact)
+            
+            return {
+                "id": str(new_fact.id),
+                "user_id": str(new_fact.user_id),
+                "key": new_fact.key,
+                "value": new_fact.value,
+                "created_at": new_fact.created_at.isoformat() if new_fact.created_at else None,
+                "updated_at": new_fact.updated_at.isoformat() if new_fact.updated_at else None,
+            }
         
     except Exception:
+        db.rollback()
         return None
 
 
-def delete_user_fact(user_id: str, key: str) -> bool:
+def delete_user_fact(user_id: str, key: str, db: Session) -> bool:
     """
-    Delete a user fact from Supabase.
+    Delete a user fact from database.
     
     Args:
         user_id: UUID of the user
         key: Fact key to delete
+        db: Database session
         
     Returns:
         True if successful, False otherwise
     """
     try:
-        supabase = get_supabase_client()
+        # Delete fact with user_id filter (security)
+        db.query(UserFact).filter(
+            UserFact.user_id == user_id,
+            UserFact.key == key
+        ).delete()
         
-        # Delete fact
-        supabase.from_("user_facts").delete().eq("user_id", user_id).eq(
-            "key", key
-        ).execute()
-        
+        db.commit()
         return True
         
     except Exception:
+        db.rollback()
         return False
 

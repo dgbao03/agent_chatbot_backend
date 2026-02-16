@@ -2,16 +2,19 @@
 Conversation repository - Data access layer for conversations.
 """
 from typing import Optional
-from app.database.client import get_supabase_client
+from sqlalchemy.orm import Session
+from app.models import Conversation
+from app.auth.context import get_current_user_id
 
 
-def create_new_conversation(user_id: str) -> str:
+def create_new_conversation(user_id: str, db: Session) -> str:
     """
     Tạo conversation mới với title = null ban đầu.
     Title sẽ được update sau khi generate.
     
     Args:
         user_id: UUID of the user
+        db: Database session
         
     Returns:
         Conversation ID (UUID string)
@@ -20,51 +23,55 @@ def create_new_conversation(user_id: str) -> str:
         ValueError: If conversation creation fails
     """
     try:
-        supabase = get_supabase_client()
+        # Create new conversation
+        conversation = Conversation(
+            user_id=user_id,
+            title=None  # Sẽ update sau
+        )
         
-        response = supabase.from_("conversations").insert(
-            {
-                "user_id": user_id,
-                "title": None,  # Sẽ update sau
-            }
-        ).execute()
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
         
-        if response.data and len(response.data) > 0:
-            conversation_id = response.data[0]["id"]
-            return conversation_id
-        else:
-            raise ValueError("Failed to create conversation: No data returned")
+        return str(conversation.id)
             
     except Exception as e:
+        db.rollback()
         raise ValueError(f"Failed to create conversation: {e}")
 
 
-def update_conversation_title(conversation_id: str, title: str) -> bool:
+def update_conversation_title(conversation_id: str, title: str, db: Session) -> bool:
     """
     Update title của conversation.
     
     Args:
         conversation_id: UUID of the conversation
         title: Title string to set
+        db: Database session
         
     Returns:
         True if successful, False otherwise
     """
     try:
-        supabase = get_supabase_client()
+        # Get current user for authorization check
+        user_id = get_current_user_id()
         
-        response = (
-            supabase.from_("conversations")
-            .update({"title": title})
-            .eq("id", conversation_id)
-            .execute()
-        )
+        # Find conversation with user_id filter (replaces RLS)
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id  # Security: filter by user_id
+        ).first()
         
-        if response.data:
-            return True
-        else:
+        if not conversation:
             return False
+        
+        # Update title
+        conversation.title = title
+        db.commit()
+        
+        return True
             
     except Exception:
+        db.rollback()
         return False
 
