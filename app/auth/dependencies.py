@@ -34,7 +34,8 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> str:
     token = authorization.replace("Bearer ", "")
     
     try:
-        user_id = verify_access_token(token)
+        payload = verify_access_token(token)
+        user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user_id

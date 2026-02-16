@@ -11,6 +11,7 @@ from app.models.presentation import Presentation
 from app.models.presentation_page import PresentationPage
 from app.models.presentation_version import PresentationVersion
 from app.models.presentation_version_page import PresentationVersionPage
+from app.models.token_blacklist import TokenBlacklist
 
 __all__ = [
     "User",
@@ -22,4 +23,5 @@ __all__ = [
     "PresentationPage",
     "PresentationVersion",
     "PresentationVersionPage",
+    "TokenBlacklist",
 ]

@@ -5,6 +5,7 @@ import bcrypt
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import os
+import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -64,10 +65,13 @@ def create_access_token(user_id: str) -> str:
         JWT access token string
     """
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    jti = str(uuid.uuid4())  # Generate unique JWT ID
+    
     payload = {
         "sub": user_id,
         "type": "access",
-        "exp": expire
+        "exp": expire,
+        "jti": jti
     }
     return jwt.encode(payload, ACCESS_TOKEN_SECRET_KEY, algorithm=ALGORITHM)
 
@@ -83,23 +87,26 @@ def create_refresh_token(user_id: str) -> str:
         JWT refresh token string
     """
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    jti = str(uuid.uuid4())  # Generate unique JWT ID
+    
     payload = {
         "sub": user_id,
         "type": "refresh",
-        "exp": expire
+        "exp": expire,
+        "jti": jti
     }
     return jwt.encode(payload, REFRESH_TOKEN_SECRET_KEY, algorithm=ALGORITHM)
 
 
-def verify_access_token(token: str) -> str:
+def verify_access_token(token: str) -> dict:
     """
-    Verify access token and return user_id.
+    Verify access token and return payload.
     
     Args:
         token: JWT access token
     
     Returns:
-        user_id: User ID from token
+        payload: Token payload containing sub, jti, exp, type
     
     Raises:
         JWTError: If token is invalid or expired
@@ -115,20 +122,20 @@ def verify_access_token(token: str) -> str:
         if token_type != "access":
             raise JWTError("Invalid token type")
         
-        return user_id
+        return payload
     except JWTError as e:
         raise JWTError(f"Token verification failed: {str(e)}")
 
 
-def verify_refresh_token(token: str) -> str:
+def verify_refresh_token(token: str) -> dict:
     """
-    Verify refresh token and return user_id.
+    Verify refresh token and return payload.
     
     Args:
         token: JWT refresh token
     
     Returns:
-        user_id: User ID from token
+        payload: Token payload containing sub, jti, exp, type
     
     Raises:
         JWTError: If token is invalid or expired
@@ -144,6 +151,6 @@ def verify_refresh_token(token: str) -> str:
         if token_type != "refresh":
             raise JWTError("Invalid token type")
         
-        return user_id
+        return payload
     except JWTError as e:
         raise JWTError(f"Token verification failed: {str(e)}")

@@ -11,7 +11,8 @@ from app.schemas.auth import (
     RefreshTokenRequest,
     OAuthURLResponse,
     OAuthCallbackRequest,
-    CheckProvidersResponse
+    CheckProvidersResponse,
+    SignOutRequest
 )
 from app.database.session import get_db
 from app.repositories.user_repository import (
@@ -33,6 +34,12 @@ from app.auth.oauth import (
     get_google_user_info,
     get_or_create_oauth_user
 )
+from app.repositories.token_blacklist_repository import (
+    is_token_blacklisted,
+    add_token_to_blacklist
+)
+from app.auth.dependencies import get_current_user
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -140,11 +147,20 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
         TokenResponse with new access_token and same refresh_token
         
     Raises:
-        HTTPException 401: If refresh token is invalid
+        HTTPException 401: If refresh token is invalid or blacklisted
     """
     try:
         # Verify refresh token
-        user_id = verify_refresh_token(request.refresh_token)
+        payload = verify_refresh_token(request.refresh_token)
+        user_id = payload.get("sub")
+        jti = payload.get("jti")
+        
+        if not user_id or not jti:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        # Check if refresh token is blacklisted
+        if is_token_blacklisted(jti, db):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
         
         # Get user from database
         user = get_user_by_id(user_id, db)
@@ -273,3 +289,58 @@ async def check_providers(
     
     # Return user's registered provider
     return CheckProvidersResponse(providers=[user.provider])
+
+
+@router.post("/signout")
+async def sign_out(
+    request: SignOutRequest,
+    current_user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Sign out user by blacklisting refresh token.
+    
+    Args:
+        request: Sign out request with refresh token
+        current_user_id: Current authenticated user ID
+        db: Database session
+        
+    Returns:
+        Success message
+        
+    Raises:
+        HTTPException 401: If refresh token is invalid
+        HTTPException 500: If blacklist operation fails
+    """
+    try:
+        # Verify and decode refresh token
+        payload = verify_refresh_token(request.refresh_token)
+        refresh_jti = payload.get("jti")
+        refresh_exp_timestamp = payload.get("exp")
+        
+        if not refresh_jti or not refresh_exp_timestamp:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        # Convert exp timestamp to datetime
+        refresh_exp = datetime.fromtimestamp(refresh_exp_timestamp, tz=timezone.utc)
+        
+        # Add refresh token to blacklist
+        success = add_token_to_blacklist(
+            token_jti=refresh_jti,
+            user_id=current_user_id,
+            token_type="refresh",
+            expires_at=refresh_exp,
+            db=db
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to sign out")
+        
+        return {"message": "Successfully signed out"}
+        
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to sign out")

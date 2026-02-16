@@ -47,3 +47,8 @@ class OAuthCallbackRequest(BaseModel):
 class CheckProvidersResponse(BaseModel):
     """Response model for checking user auth providers"""
     providers: list[str] = Field(..., description="List of auth providers (email, google)")
+
+
+class SignOutRequest(BaseModel):
+    """Request model for sign out"""
+    refresh_token: str = Field(..., description="JWT refresh token to revoke")
