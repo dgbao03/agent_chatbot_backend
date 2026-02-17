@@ -1,21 +1,29 @@
 """
 Presentation Schemas - Pydantic models for presentation endpoints
-TODO: Implement request/response schemas for presentations
 """
-# from pydantic import BaseModel
-# from typing import List
-# from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, List
 
-# class PresentationPageResponse(BaseModel):
-#     page_number: int
-#     html_content: str
 
-# class PresentationResponse(BaseModel):
-#     id: str
-#     conversation_id: str
-#     version: int
-#     pages: List[PresentationPageResponse]
-#     created_at: datetime
-#     
-#     class Config:
-#         from_attributes = True
+class PageContentResponse(BaseModel):
+    page_number: int
+    html_content: str
+    page_title: Optional[str] = None
+
+
+class VersionInfoResponse(BaseModel):
+    version: int
+    total_pages: int
+    is_current: bool
+    timestamp: Optional[str] = None  # alias for created_at for FE compatibility
+    created_at: Optional[str] = None
+    user_request: Optional[str] = None
+
+
+class VersionContentResponse(BaseModel):
+    pages: List[PageContentResponse]
+    total_pages: int
+
+
+class ActivePresentationResponse(BaseModel):
+    presentation_id: Optional[str] = None

@@ -4,7 +4,7 @@ User Facts Tools - Add, update, and delete user facts.
 from app.tools.base import BaseTool
 from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact as delete_user_fact_repo
 from app.utils.helpers import find_fact_by_key
-from app.auth.context import get_current_user_id
+from app.auth.context import get_current_user_id, get_current_db_session
 from app.config.types import UserFact
 
 
@@ -30,8 +30,9 @@ class AddUserFactTool(BaseTool):
             Success or error message
         """
         try:
-            # Get user_id from context
+            # Get user_id and db from context
             user_id = get_current_user_id()
+            db = get_current_db_session()
             if not user_id:
                 return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
             
@@ -44,13 +45,13 @@ class AddUserFactTool(BaseTool):
             key_clean = key.strip()
             value_clean = value.strip()
             
-            # Upsert fact in Supabase
+            # Upsert fact in database
             fact: UserFact = {
                 "user_id": user_id,
                 "key": key_clean,
                 "value": value_clean,
             }
-            saved_fact = upsert_user_fact(fact)
+            saved_fact = upsert_user_fact(fact, db)
             if saved_fact:
                 return f"Đã lưu: {key_clean} = {value_clean}"
             else:
@@ -84,6 +85,7 @@ class UpdateUserFactTool(BaseTool):
         try:
             # Get user_id from context
             user_id = get_current_user_id()
+            db = get_current_db_session()
             if not user_id:
                 return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
             
@@ -97,7 +99,7 @@ class UpdateUserFactTool(BaseTool):
             value_clean = value.strip()
             
             # Check if fact exists
-            facts = load_user_facts(user_id)
+            facts = load_user_facts(user_id, db)
             fact = find_fact_by_key(facts, key_clean)
             
             if not fact:
@@ -109,7 +111,7 @@ class UpdateUserFactTool(BaseTool):
                 "key": key_clean,
                 "value": value_clean,
             }
-            saved_fact = upsert_user_fact(fact_to_update)
+            saved_fact = upsert_user_fact(fact_to_update, db)
             if saved_fact:
                 return f"Đã cập nhật: {key_clean} = {value_clean}"
             else:
@@ -142,6 +144,7 @@ class DeleteUserFactTool(BaseTool):
         try:
             # Get user_id from context
             user_id = get_current_user_id()
+            db = get_current_db_session()
             if not user_id:
                 return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
             
@@ -151,14 +154,14 @@ class DeleteUserFactTool(BaseTool):
             key_clean = key.strip()
             
             # Check if fact exists
-            facts = load_user_facts(user_id)
+            facts = load_user_facts(user_id, db)
             fact = find_fact_by_key(facts, key_clean)
             
             if not fact:
                 return f"Không tìm thấy thông tin với key: {key_clean}"
             
             # Delete fact
-            if delete_user_fact_repo(user_id, key_clean):
+            if delete_user_fact_repo(user_id, key_clean, db):
                 return f"Đã xóa thông tin: {key_clean}"
             else:
                 return "Lỗi: Không thể xóa thông tin."

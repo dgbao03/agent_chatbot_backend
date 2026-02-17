@@ -1,27 +1,36 @@
 """
 Conversation Schemas - Pydantic models for conversation endpoints
-TODO: Implement request/response schemas for conversations
 """
-# from pydantic import BaseModel
-# from typing import Optional
-# from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, List, Any
 
-# class ConversationResponse(BaseModel):
-#     id: str
-#     user_id: str
-#     title: Optional[str]
-#     created_at: datetime
-#     
-#     class Config:
-#         from_attributes = True
 
-# class MessageResponse(BaseModel):
-#     id: str
-#     conversation_id: str
-#     role: str
-#     content: str
-#     intent: Optional[str]
-#     created_at: datetime
-#     
-#     class Config:
-#         from_attributes = True
+class ConversationResponse(BaseModel):
+    id: str
+    user_id: str
+    title: Optional[str] = None
+    active_presentation_id: Optional[str] = None
+    next_presentation_id_counter: int = 1
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ConversationUpdateRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class ExistsResponse(BaseModel):
+    exists: bool
+
+
+class MessageResponse(BaseModel):
+    id: str
+    conversation_id: str
+    role: str
+    content: str
+    intent: Optional[str] = None
+    metadata: Optional[dict] = None
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True

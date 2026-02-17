@@ -4,6 +4,7 @@ Format functions for converting data to text formats.
 from typing import List
 from llama_index.core.llms import ChatMessage
 from app.repositories.user_facts_repository import load_user_facts
+from app.auth.context import get_current_db_session
 
 
 def format_user_facts_for_prompt(user_id: str) -> str:
@@ -17,7 +18,8 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         Formatted string với user facts, hoặc empty string nếu không có facts
     """
     try:
-        facts = load_user_facts(user_id)
+        db = get_current_db_session()
+        facts = load_user_facts(user_id, db)
         if not facts:
             return ""
         

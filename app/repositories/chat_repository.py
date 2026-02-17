@@ -65,6 +65,58 @@ def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
         return []
 
 
+def load_all_messages_for_conversation(
+    conversation_id: str, user_id: str, db: Session
+) -> List[MessageDict]:
+    """
+    Load ALL messages for a conversation (including summarized).
+    Used by FE to display full chat history.
+    Ownership checked via Conversation.user_id.
+
+    Args:
+        conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
+        db: Database session
+
+    Returns:
+        List of Message dicts ordered by created_at asc
+    """
+    try:
+        # Verify conversation belongs to user
+        conversation = db.query(Conversation).filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        ).first()
+        if not conversation:
+            return []
+
+        messages = (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc())
+            .all()
+        )
+        if not messages:
+            return []
+
+        result: List[MessageDict] = []
+        for msg in messages:
+            result.append({
+                "id": str(msg.id),
+                "conversation_id": str(msg.conversation_id),
+                "role": msg.role,
+                "content": msg.content,
+                "intent": msg.intent,
+                "is_in_working_memory": msg.is_in_working_memory,
+                "summarized_at": msg.summarized_at.isoformat() if msg.summarized_at else None,
+                "metadata": msg.msg_metadata,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+            })
+        return result
+    except Exception:
+        return []
+
+
 def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
     """
     Save a new message to database.

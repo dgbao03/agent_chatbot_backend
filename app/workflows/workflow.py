@@ -155,10 +155,8 @@ class ChatWorkflow(Workflow):
                 if new_conv_id:
                     response_result["conversation_id"] = new_conv_id
                     response_result["title"] = new_conv_title
-                    print(f"[SECURITY CHECK] Created new conversation: {new_conv_id} with title: {new_conv_title}")
                 
                 # Return rejection response
-                print(f"[SECURITY CHECK] Returning EXPLOIT response with conversation_id: {conversation_id}")
                 return StopEvent(result=response_result)
             
             # SAFE - Continue to business router
@@ -321,8 +319,6 @@ class ChatWorkflow(Workflow):
                     args = json.loads(args_str)
                 else:
                     args = args_str
-
-                print(f"[TOOL CALL] {name}({args})")
 
                 # Execute tool via registry
                 result = registry.execute_tool(name, **args)

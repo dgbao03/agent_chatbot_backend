@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-# Import auth router
-from app.routers import auth
+# Import routers
+from app.routers import auth, conversations, presentations, workflow
 
 app = FastAPI(
     title="Agent Chat API",
@@ -26,8 +26,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register auth router
+# Register routers
 app.include_router(auth.router)
+app.include_router(conversations.router, prefix="/api")
+app.include_router(presentations.router, prefix="/api")
+app.include_router(workflow.router)  # /workflows/chat/run - no /api prefix (FE calls directly)
 
 # Health check endpoint
 @app.get("/health")
