@@ -42,3 +42,6 @@ pydantic-settings
 authlib
 httpx
 email-validator
+
+# SMTP
+aiosmtplib

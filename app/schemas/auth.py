@@ -54,6 +54,17 @@ class SignOutRequest(BaseModel):
     refresh_token: str = Field(..., description="JWT refresh token to revoke")
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Request model for forgot password"""
+    email: EmailStr = Field(..., description="User's email address")
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request model for reset password (with token from email link)"""
+    token: str = Field(..., description="Password reset token from email link")
+    new_password: str = Field(..., min_length=6, description="New password (min 6 characters)")
+
+
 class UserInfoResponse(BaseModel):
     """Response model for current user information"""
     user_id: str = Field(..., description="User's ID")

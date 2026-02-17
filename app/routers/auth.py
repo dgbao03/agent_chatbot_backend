@@ -7,21 +7,24 @@ from sqlalchemy.orm import Session
 from jose import JWTError
 import os
 from app.schemas.auth import (
-    LoginRequest, 
-    RegisterRequest, 
-    TokenResponse, 
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
     RefreshTokenRequest,
     OAuthURLResponse,
     OAuthCallbackRequest,
     CheckProvidersResponse,
     SignOutRequest,
-    UserInfoResponse
+    UserInfoResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from app.database.session import get_db
 from app.repositories.user_repository import (
     create_user,
     get_user_by_email,
-    get_user_by_id
+    get_user_by_id,
+    update_user,
 )
 from app.auth.utils import (
     hash_password,
@@ -39,8 +42,14 @@ from app.auth.oauth import (
 )
 from app.repositories.token_blacklist_repository import (
     is_token_blacklisted,
-    add_token_to_blacklist
+    add_token_to_blacklist,
 )
+from app.repositories.password_reset_token_repository import (
+    create_token as create_reset_token,
+    get_valid_token,
+    mark_token_used,
+)
+from app.services.email_service import send_password_reset_email
 from app.auth.dependencies import get_current_user
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -305,6 +314,59 @@ async def check_providers(
     
     # Return user's registered provider
     return CheckProvidersResponse(providers=[user.provider])
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Request password reset. Sends reset link to email if user exists with email provider.
+    Always returns 200 to avoid email enumeration.
+    """
+    user = get_user_by_email(request.email, db)
+    if not user:
+        return {"message": "If an account exists with that email, you will receive a reset link."}
+
+    if user.provider != "email":
+        return {"message": "If an account exists with that email, you will receive a reset link."}
+
+    token_str = create_reset_token(str(user.id), expires_minutes=15, db=db)
+    if not token_str:
+        return {"message": "If an account exists with that email, you will receive a reset link."}
+
+    reset_link = f"{FRONTEND_URL}/reset-password?token={token_str}"
+    sent = await send_password_reset_email(user.email, reset_link)
+
+    return {"message": "If an account exists with that email, you will receive a reset link."}
+
+
+@router.get("/verify-reset-token")
+async def verify_reset_token(token: str = Query(...), db: Session = Depends(get_db)):
+    """
+    Verify if reset token is valid (for frontend to check before showing form).
+    """
+    token_record = get_valid_token(token, db)
+    if not token_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+    return {"valid": True}
+
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Reset password using token from email link.
+    """
+    token_record = get_valid_token(request.token, db)
+    if not token_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+
+    hashed_pwd = hash_password(request.new_password)
+    updated = update_user(str(token_record.user_id), {"hashed_password": hashed_pwd}, db)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update password.")
+
+    mark_token_used(request.token, db)
+
+    return {"message": "Password reset successful. Please login with your new password."}
 
 
 @router.post("/signout")
