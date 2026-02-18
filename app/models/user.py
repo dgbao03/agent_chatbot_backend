@@ -3,7 +3,7 @@ User Model - SQLAlchemy ORM
 Maps to 'users' table for authentication
 """
 from sqlalchemy import Column, String, Boolean, text
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ARRAY
 from sqlalchemy.orm import relationship
 from app.database.session import Base
 
@@ -22,8 +22,8 @@ class User(Base):
     name = Column(String(255), nullable=True)
     avatar_url = Column(String(500), nullable=True)
     
-    # OAuth
-    provider = Column(String(50), nullable=False, server_default="email")
+    # OAuth - providers: list of auth methods (email, google, etc.)
+    providers = Column(ARRAY(String), nullable=False, server_default=text("ARRAY['email']"))
     provider_user_id = Column(String(255), nullable=True)
     
     # Email verification
@@ -38,4 +38,4 @@ class User(Base):
     user_facts = relationship("UserFact", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<User(id={self.id}, email={self.email}, provider={self.provider})>"
+        return f"<User(id={self.id}, email={self.email}, providers={self.providers})>"

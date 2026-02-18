@@ -154,27 +154,29 @@ def get_or_create_oauth_user(
         existing_user = get_user_by_email(email, db)
         
         if existing_user:
-            # User exists - update OAuth info if needed
-            if existing_user.provider != provider or existing_user.provider_user_id != provider_user_id:
-                existing_user.provider = provider
-                existing_user.provider_user_id = provider_user_id
-                
-                # Update profile info if not set
-                if not existing_user.name and name:
-                    existing_user.name = name
-                if not existing_user.avatar_url and avatar_url:
-                    existing_user.avatar_url = avatar_url
-                
-                existing_user.email_verified = True
-                db.commit()
-                db.refresh(existing_user)
-            
+            # User exists - add OAuth provider to providers list (don't overwrite)
+            current_providers = list(existing_user.providers or [])
+            if provider not in current_providers:
+                current_providers.append(provider)
+                existing_user.providers = current_providers
+            existing_user.provider_user_id = provider_user_id
+
+            # Update profile info if not set
+            if not existing_user.name and name:
+                existing_user.name = name
+            if not existing_user.avatar_url and avatar_url:
+                existing_user.avatar_url = avatar_url
+
+            existing_user.email_verified = True
+            db.commit()
+            db.refresh(existing_user)
+
             return (existing_user, False)
         else:
             # Create new user
             user_data = {
                 "email": email,
-                "provider": provider,
+                "providers": [provider],
                 "provider_user_id": provider_user_id,
                 "name": name,
                 "avatar_url": avatar_url,

@@ -90,7 +90,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         "email": request.email,
         "hashed_password": hashed_pwd,
         "name": request.name,
-        "provider": "email",
+        "providers": ["email"],
         "email_verified": False
     }
     
@@ -312,8 +312,8 @@ async def check_providers(
         # Email not registered, all providers available
         return CheckProvidersResponse(providers=["email", "google"])
     
-    # Return user's registered provider
-    return CheckProvidersResponse(providers=[user.provider])
+    # Return user's registered providers
+    return CheckProvidersResponse(providers=user.providers or [])
 
 
 @router.post("/forgot-password")
@@ -326,7 +326,7 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
     if not user:
         return {"message": "If an account exists with that email, you will receive a reset link."}
 
-    if user.provider != "email":
+    if "email" not in (user.providers or []):
         return {"message": "If an account exists with that email, you will receive a reset link."}
 
     token_str = create_reset_token(str(user.id), expires_minutes=15, db=db)
@@ -453,7 +453,7 @@ async def get_current_user_info(
         email=user.email,
         name=user.name,
         avatar_url=user.avatar_url,
-        provider=user.provider,
+        providers=user.providers or [],
         email_verified=user.email_verified,
         created_at=user.created_at.isoformat() if user.created_at else None
     )

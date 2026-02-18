@@ -71,6 +71,6 @@ class UserInfoResponse(BaseModel):
     email: str = Field(..., description="User's email")
     name: Optional[str] = Field(None, description="User's display name")
     avatar_url: Optional[str] = Field(None, description="User's avatar URL")
-    provider: str = Field(..., description="Authentication provider (email, google)")
+    providers: list[str] = Field(..., description="List of auth providers (email, google)")
     email_verified: bool = Field(..., description="Whether email is verified")
-    created_at: str = Field(..., description="Account creation timestamp")
+    created_at: Optional[str] = Field(None, description="Account creation timestamp")
