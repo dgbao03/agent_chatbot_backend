@@ -57,7 +57,7 @@ def create_presentation(
             topic=presentation["topic"],
             total_pages=presentation["total_pages"],
             version=presentation.get("version", 1),
-            metadata={"user_request": user_request}
+            pres_metadata={"user_request": user_request}
         )
         
         db.add(new_presentation)
@@ -201,11 +201,10 @@ def update_presentation(
             if current_presentation.pres_metadata:
                 old_user_request = current_presentation.pres_metadata.get("user_request")
             
-            # Create archived version record
+            # Create archived version record (PresentationVersion has no topic column)
             archived_version = PresentationVersion(
                 presentation_id=presentation_id,
                 version=current_version,
-                topic=current_presentation.topic,
                 total_pages=current_presentation.total_pages,
                 user_request=old_user_request
             )
