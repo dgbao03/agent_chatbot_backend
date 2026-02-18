@@ -3,8 +3,9 @@ Summary repository - Data access layer for conversation summaries.
 """
 from datetime import datetime, timezone
 from typing import List
+from uuid import UUID
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 from app.models import ConversationSummary, Message, Conversation
 from app.config.types import SummaryDict
 from app.auth.context import get_current_user_id
@@ -13,7 +14,6 @@ from app.auth.context import get_current_user_id
 def load_summary(conversation_id: str, db: Session) -> SummaryDict:
     """
     Load chat summary from database for a conversation.
-    Gets the latest version summary.
     
     Args:
         conversation_id: UUID of the conversation
@@ -35,10 +35,10 @@ def load_summary(conversation_id: str, db: Session) -> SummaryDict:
         if not conversation:
             return {"summary_content": ""}
         
-        # Query latest summary (highest version)
+        # Query summary (1 row per conversation)
         summary = db.query(ConversationSummary).filter(
             ConversationSummary.conversation_id == conversation_id
-        ).order_by(ConversationSummary.version.desc()).first()
+        ).first()
         
         if not summary:
             return {"summary_content": ""}
@@ -54,7 +54,7 @@ def load_summary(conversation_id: str, db: Session) -> SummaryDict:
 def save_summary(conversation_id: str, summary_content: str, db: Session) -> bool:
     """
     Save chat summary to database.
-    Creates a new version of the summary.
+    Upsert: overwrites existing summary for the conversation.
     
     Args:
         conversation_id: UUID of the conversation
@@ -65,25 +65,18 @@ def save_summary(conversation_id: str, summary_content: str, db: Session) -> boo
         bool: True if successful
     """
     try:
-        # Get current max version
-        max_version = db.query(func.max(ConversationSummary.version)).filter(
-            ConversationSummary.conversation_id == conversation_id
-        ).scalar()
-        
-        new_version = (max_version or 0) + 1
-        
-        # Create new summary version
-        summary = ConversationSummary(
-            conversation_id=conversation_id,
-            version=new_version,
+        uid = UUID(conversation_id) if isinstance(conversation_id, str) else conversation_id
+        stmt = insert(ConversationSummary).values(
+            conversation_id=uid,
             summary_content=summary_content
         )
-        
-        db.add(summary)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['conversation_id'],
+            set_={'summary_content': stmt.excluded.summary_content}
+        )
+        db.execute(stmt)
         db.commit()
-        
         return True
-        
     except Exception:
         db.rollback()
         return False

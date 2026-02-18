@@ -148,7 +148,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         else:
             summary_text = str(response)
         
-        # Lưu summary mới (creates new version)
+        # Lưu summary mới (upsert overwrites)
         save_summary(conversation_id, summary_text, db)
         
         return summary_text

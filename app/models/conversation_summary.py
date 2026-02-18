@@ -2,7 +2,7 @@
 ConversationSummary Model - SQLAlchemy ORM
 Maps to 'conversation_summaries' table
 """
-from sqlalchemy import Column, String, Integer, ForeignKey, UniqueConstraint, text
+from sqlalchemy import Column, String, ForeignKey, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.database.session import Base
@@ -18,7 +18,6 @@ class ConversationSummary(Base):
     conversation_id = Column(UUID, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     
     # Data
-    version = Column(Integer, nullable=False, server_default="1")
     summary_content = Column(String, nullable=False)
     
     # Timestamp
@@ -27,10 +26,10 @@ class ConversationSummary(Base):
     # Relationships
     conversation = relationship("Conversation", back_populates="summaries")
     
-    # Constraints
+    # Constraints - 1 summary per conversation (upsert overwrites)
     __table_args__ = (
-        UniqueConstraint('conversation_id', 'version', name='uq_conversation_summary_version'),
+        UniqueConstraint('conversation_id', name='uq_conversation_summary_conversation_id'),
     )
     
     def __repr__(self):
-        return f"<ConversationSummary(id={self.id}, conversation_id={self.conversation_id}, version={self.version})>"
+        return f"<ConversationSummary(id={self.id}, conversation_id={self.conversation_id})>"
