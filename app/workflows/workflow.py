@@ -71,7 +71,7 @@ class ChatWorkflow(Workflow):
         user_input = ev.get("user_input")
         conversation_id = ev.get("conversation_id")
         
-        # Get db session from ContextVar (set by AuthMiddleware)
+        # Get db session from ContextVar (set by workflow router)
         db = get_current_db_session()
         
         # Store db in context for other steps

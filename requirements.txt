@@ -25,9 +25,6 @@ lxml_html_clean
 # FastAPI
 fastapi
 
-# Supabase
-supabase
-
 # Backend Development
 fastapi
 sqlalchemy
