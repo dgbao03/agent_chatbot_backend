@@ -111,7 +111,7 @@ def load_presentation(presentation_id: str, db: Session) -> Optional[Presentatio
         user_id = get_current_user_id()
         
         # Get presentation with user authorization check
-        presentation = db.query(Presentation).join(Conversation).filter(
+        presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
             Conversation.user_id == user_id  # Security: filter by user_id
         ).first()
@@ -178,7 +178,7 @@ def update_presentation(
         user_id = get_current_user_id()
         
         # Get current presentation with user authorization
-        current_presentation = db.query(Presentation).join(Conversation).filter(
+        current_presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
             Conversation.user_id == user_id  # Security: filter by user_id
         ).first()
@@ -281,7 +281,7 @@ def get_presentation_versions(
         uid = user_id or get_current_user_id()
         
         # Verify presentation belongs to user
-        presentation = db.query(Presentation).join(Conversation).filter(
+        presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
             Conversation.user_id == uid  # Security: filter by user_id
         ).first()
@@ -322,7 +322,7 @@ def get_presentation_versions(
         
         return versions
         
-    except Exception:
+    except Exception as e:
         return []
 
 
@@ -346,7 +346,7 @@ def get_version_content(
         uid = user_id or get_current_user_id()
         
         # Get presentation with user authorization
-        presentation = db.query(Presentation).join(Conversation).filter(
+        presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
             Conversation.user_id == uid  # Security: filter by user_id
         ).first()

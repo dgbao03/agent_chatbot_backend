@@ -135,7 +135,7 @@ def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
             role=message["role"],
             content=message["content"],
             intent=message.get("intent"),
-            metadata=message.get("metadata"),
+            msg_metadata=message.get("metadata"),
             is_in_working_memory=message.get("is_in_working_memory", True)
         )
         

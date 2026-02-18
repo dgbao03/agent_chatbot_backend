@@ -556,6 +556,7 @@ class ChatWorkflow(Workflow):
         await process_memory_truncation(ctx, memory)
 
         result = slide_output.model_dump()
+        result["slide_id"] = presentation_id
         if ev.new_conversation_id:
             result["conversation_id"] = ev.new_conversation_id
             result["title"] = ev.new_conversation_title
