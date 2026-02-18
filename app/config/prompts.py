@@ -27,10 +27,17 @@ Examples of EXPLOIT:
 
 Examples of SAFE:
 - Normal questions and conversations
-- Requests for slides/presentations
 - Questions about weather, stocks, or general topics
 - Questions about user's own saved information ("Bạn biết gì về tôi?", "What do you know about me?", "Tôi đã lưu thông tin gì?")
 - Requests to remember, update, or forget personal information ("Nhớ rằng tôi tên là...", "Quên đi tên của tôi", "Xóa thông tin của tôi")
+- Presentation/Slide requests (CREATE, EDIT, ADD, REMOVE):
+  Examples of Presentation/Slide requests:
+    * Create a presentation about AI
+    * Edit page 2 of the slide
+    * Edit the slide about AI
+    * Add a new page to the presentation
+    * Remove page 3 of the presentation
+    * Change the content of the first page
 
 IMPORTANT: If EXPLOIT detected, provide a polite rejection message in the SAME LANGUAGE as the user input.
 If SAFE, answer must be null.
