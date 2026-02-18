@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 from uuid import UUID
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.models.password_reset_token import PasswordResetToken
 
 
@@ -60,6 +61,31 @@ def get_valid_token(token: str, db: Session) -> Optional[PasswordResetToken]:
         return record
     except Exception:
         return None
+
+
+def cleanup_expired_reset_tokens(db: Session) -> int:
+    """
+    Delete expired or used password reset tokens (for periodic cleanup).
+
+    Args:
+        db: Database session
+
+    Returns:
+        Number of deleted entries
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        deleted = db.query(PasswordResetToken).filter(
+            or_(
+                PasswordResetToken.expires_at < now,
+                PasswordResetToken.used_at.isnot(None),
+            )
+        ).delete()
+        db.commit()
+        return deleted
+    except Exception:
+        db.rollback()
+        return 0
 
 
 def mark_token_used(token: str, db: Session) -> bool:
