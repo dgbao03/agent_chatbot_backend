@@ -1,12 +1,8 @@
-# Core LlamaIndex packages
+# Core LlamaIndex Packages
 llama-index-core
 llama-index-llms-openai
 
-# Data validation
-pydantic
-email-validator
-
-# Environment variables
+# Environment Variables
 python-dotenv
 
 # WorkflowServer (REST API)
@@ -34,11 +30,16 @@ python-jose[cryptography]
 bcrypt
 python-multipart
 pydantic-settings
+httpx
+email-validator
+pydantic
+email-validator
 
 # OAuth
 authlib
-httpx
-email-validator
 
 # SMTP
 aiosmtplib
+
+# Background Scheduler
+apscheduler

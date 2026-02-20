@@ -41,7 +41,6 @@ def add_token_to_blacklist(
         
     except Exception as e:
         db.rollback()
-        print(f"Error adding token to blacklist: {e}")
         return False
 
 

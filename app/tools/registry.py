@@ -35,8 +35,6 @@ class ToolRegistry:
             raise ValueError(f"Tool with name '{tool.name}' already registered")
         
         self._tools[tool.name] = tool
-        # Removed log for cleaner output
-        # print(f"[ToolRegistry] Registered tool: {tool.name} (category: {tool.category})")
     
     def get(self, name: str) -> Optional[BaseTool]:
         """
