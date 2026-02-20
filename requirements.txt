@@ -43,3 +43,7 @@ aiosmtplib
 
 # Background Scheduler
 apscheduler
+
+# Logging
+structlog
+python-json-logger

@@ -48,10 +48,13 @@ from app.repositories.password_reset_token_repository import (
 )
 from app.services.email_service import send_password_reset_email
 from app.auth.dependencies import get_current_user
+from app.logging import get_logger
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = get_logger(__name__)
 
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5174")
@@ -98,6 +101,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """
     existing_user = get_user_by_email(request.email, db)
     if existing_user:
+        logger.warning("register_failed", email=request.email, reason="email_already_registered")
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_pwd = hash_password(request.password)
@@ -116,6 +120,8 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(str(new_user.id))
     refresh_token = create_refresh_token(str(new_user.id))
 
+    logger.info("user_registered", email=request.email, auth_method="email")
+
     return _create_token_response(access_token, str(new_user.id), new_user.email, refresh_token)
 
 
@@ -127,16 +133,21 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     """
     user = get_user_by_email(request.email, db)
     if not user:
+        logger.warning("login_failed", email=request.email, reason="user_not_found")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.hashed_password:
+        logger.warning("login_failed", email=request.email, reason="no_password_provider")
         raise HTTPException(status_code=401, detail="Invalid login method")
 
     if not verify_password(request.password, user.hashed_password):
+        logger.warning("login_failed", email=request.email, reason="wrong_password")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
+
+    logger.info("login_success", email=request.email, auth_method="password")
 
     return _create_token_response(access_token, str(user.id), user.email, refresh_token)
 
@@ -149,6 +160,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
     """
     refresh_token_value = request.cookies.get(REFRESH_TOKEN_COOKIE_KEY)
     if not refresh_token_value:
+        logger.warning("token_refresh_failed", reason="no_refresh_token_cookie")
         raise HTTPException(status_code=401, detail="Refresh token not found")
 
     try:
@@ -157,16 +169,21 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         jti = payload.get("jti")
 
         if not user_id or not jti:
+            logger.warning("token_refresh_failed", reason="invalid_payload")
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         if is_token_blacklisted(jti, db):
+            logger.warning("token_refresh_failed", reason="token_blacklisted")
             raise HTTPException(status_code=401, detail="Token has been revoked")
 
         user = get_user_by_id(user_id, db)
         if not user:
+            logger.warning("token_refresh_failed", reason="user_not_found")
             raise HTTPException(status_code=401, detail="User not found")
 
         new_access_token = create_access_token(str(user.id))
+
+        logger.info("token_refreshed")
 
         return JSONResponse(content={
             "access_token": new_access_token,
@@ -176,6 +193,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         })
 
     except JWTError:
+        logger.warning("token_refresh_failed", reason="jwt_error")
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 
@@ -260,6 +278,8 @@ async def google_oauth_callback(
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))
 
+        logger.info("oauth_callback_success", provider="google", email=email, is_new_user=is_new)
+
         # Redirect to frontend with access_token in URL, refresh_token in httpOnly cookie
         callback_url = f"{FRONTEND_URL}/auth/callback?access_token={access_token}"
         response = RedirectResponse(url=callback_url)
@@ -267,6 +287,7 @@ async def google_oauth_callback(
         return response
         
     except Exception as e:
+        logger.warning("oauth_callback_failed", provider="google", error_message=str(e))
         # Redirect to frontend with error
         error_url = f"{FRONTEND_URL}/login?error=unexpected_error"
         return RedirectResponse(url=error_url)
@@ -317,6 +338,8 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
     reset_link = f"{FRONTEND_URL}/reset-password?token={token_str}"
     sent = await send_password_reset_email(user.email, reset_link)
 
+    logger.info("password_reset_requested", email=request.email)
+
     return {"message": "If an account exists with that email, you will receive a reset link."}
 
 
@@ -347,6 +370,8 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 
     mark_token_used(request.token, db)
 
+    logger.info("password_reset_completed", user_id=str(token_record.user_id))
+
     return {"message": "Password reset successful. Please login with your new password."}
 
 
@@ -355,6 +380,8 @@ async def sign_out(request: Request, db: Session = Depends(get_db)):
     """
     Sign out user by blacklisting refresh token from cookie and clearing cookie.
     """
+    logger.info("signout")
+
     response = JSONResponse(content={"message": "Successfully signed out"})
     response.delete_cookie(key=REFRESH_TOKEN_COOKIE_KEY, path="/auth")
 

@@ -1,20 +1,29 @@
 """
 FastAPI Application Entry Point
 """
+import traceback
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
+from app.logging import setup_logging, get_logger
+from app.logging.middleware import RequestLoggingMiddleware
 from app.routers import auth, conversations, presentations, workflow
 from app.tasks.cleanup import start_scheduler, stop_scheduler
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+    logger.info("app_started", version="2.0.0", port=4040)
     start_scheduler()
     yield
     stop_scheduler()
+    logger.info("app_stopped")
 
 
 app = FastAPI(
@@ -24,7 +33,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# Middleware (order matters: last added = first executed)
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -35,6 +45,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global exception handler
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "unhandled_error",
+        error_type=type(exc).__name__,
+        error_message=str(exc),
+        stack_trace=traceback.format_exc(),
+        method=request.method,
+        path=request.url.path,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # Register routers
 app.include_router(auth.router)

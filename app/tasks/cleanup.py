@@ -4,11 +4,15 @@ Token Cleanup Scheduler - Integrated into FastAPI server lifecycle.
 Runs cleanup every 24 hours automatically when the server is running.
 No external cron or fixed paths needed.
 """
+import time
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.database.session import SessionLocal
 from app.repositories.token_blacklist_repository import cleanup_expired_tokens
 from app.repositories.password_reset_token_repository import cleanup_expired_reset_tokens
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 CLEANUP_INTERVAL_HOURS = 24
 
@@ -17,12 +21,17 @@ scheduler = BackgroundScheduler()
 
 def run_cleanup() -> None:
     """Run cleanup for token_blacklist and password_reset_tokens."""
+    logger.info("cleanup_started")
+    start = time.perf_counter()
     db = SessionLocal()
     try:
         cleanup_expired_tokens(db)
         cleanup_expired_reset_tokens(db)
-    except Exception:
-        pass
+        duration_ms = round((time.perf_counter() - start) * 1000)
+        logger.info("cleanup_completed", duration_ms=duration_ms)
+    except Exception as e:
+        duration_ms = round((time.perf_counter() - start) * 1000)
+        logger.error("cleanup_failed", error_type=type(e).__name__, error_message=str(e), duration_ms=duration_ms)
     finally:
         db.close()
 

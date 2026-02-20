@@ -2,6 +2,7 @@
 Chat workflow - Main workflow for routing and answering user queries.
 """
 import json
+import time
 from typing import Union, Optional
 from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
@@ -36,6 +37,9 @@ from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
 from app.workflows.memory_manager import process_memory_truncation
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
 llm_security = OpenAI(model="gpt-3.5-turbo", temperature=0, request_timeout=30.0)  # Fast LLM for security check
@@ -69,8 +73,11 @@ class ChatWorkflow(Workflow):
         Step 1: Security layer - Check for system exploitation attempts.
         Returns StopEvent with rejection if EXPLOIT, otherwise continues to route_and_answer.
         """
+        step_start = time.perf_counter()
         user_input = ev.get("user_input")
         conversation_id = ev.get("conversation_id")
+
+        logger.info("security_check_started", conversation_id=conversation_id)
         
         # Get db session from ContextVar (set by workflow router)
         db = get_current_db_session()
@@ -83,6 +90,7 @@ class ChatWorkflow(Workflow):
 
         try:
             # Call LLM for security classification
+            llm_start = time.perf_counter()
             result = await llm_security.astructured_predict(
                 SecurityOutput,
                 ChatPromptTemplate.from_messages([
@@ -90,8 +98,21 @@ class ChatWorkflow(Workflow):
                     ("user", user_input)
                 ])
             )
+            llm_duration = round((time.perf_counter() - llm_start) * 1000)
+
+            logger.info(
+                "security_check_llm_call",
+                model="gpt-3.5-turbo",
+                duration_ms=llm_duration,
+            )
             
             if result.classification == "EXPLOIT":
+                logger.info(
+                    "security_check_completed",
+                    classification="EXPLOIT",
+                    duration_ms=round((time.perf_counter() - step_start) * 1000),
+                )
+
                 # Get user_id from context
                 user_id = get_current_user_id()
                 
@@ -161,12 +182,23 @@ class ChatWorkflow(Workflow):
                 return StopEvent(result=response_result)
             
             # SAFE - Continue to business router
+            logger.info(
+                "security_check_completed",
+                classification="SAFE",
+                duration_ms=round((time.perf_counter() - step_start) * 1000),
+            )
             return BusinessRouterEvent(
                 user_input=user_input,
                 conversation_id=conversation_id
             )
             
         except Exception as e:
+            logger.error(
+                "security_check_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                duration_ms=round((time.perf_counter() - step_start) * 1000),
+            )
             # On error, fail-safe: allow request to continue
             return BusinessRouterEvent(
                 user_input=user_input,
@@ -175,6 +207,8 @@ class ChatWorkflow(Workflow):
 
     @step
     async def route_and_answer(self, ctx: Context, ev: BusinessRouterEvent) -> Union[StopEvent, "GenerateSlideEvent"]:
+
+        step_start = time.perf_counter()
 
         # Get params from BusinessRouterEvent (passed from security_check)
         user_input = ev.user_input
@@ -214,8 +248,10 @@ class ChatWorkflow(Workflow):
                     title += "..."
                 update_conversation_title(conversation_id, title, db)
                 new_conv_title = title
+
+            logger.info("conversation_created", conversation_id=conversation_id, title=new_conv_title)
         else:
-            # ✅ Validate conversation ownership (fail early before processing)
+            # Validate conversation ownership (fail early before processing)
             validate_conversation_access(user_id, conversation_id, db)
 
         # Store user_id and conversation_id in context for later use
@@ -235,10 +271,12 @@ class ChatWorkflow(Workflow):
             memory.put(ChatMessage(
                 role=chat["role"], 
                 content=chat["content"],
-                additional_kwargs={"message_id": chat.get("id")}  # Store ID in additional_kwargs
+                additional_kwargs={"message_id": chat.get("id")}
             ))
 
         history = memory.get()
+
+        logger.debug("chat_history_loaded", conversation_id=conversation_id, message_count=len(chat_history))
 
         # Load và format user facts để thêm vào System Prompt
         user_facts_text = format_user_facts_for_prompt(user_id)
@@ -291,6 +329,8 @@ class ChatWorkflow(Workflow):
         }
         saved_user_msg = save_message(user_message, db)
         user_msg_id = saved_user_msg["id"] if saved_user_msg else None
+
+        logger.debug("message_saved", conversation_id=conversation_id, role="user")
         
         # Put into memory with ID from DB
         memory.put(ChatMessage(
@@ -299,9 +339,49 @@ class ChatWorkflow(Workflow):
             additional_kwargs={"message_id": user_msg_id}
         ))
 
-        # 🔁 Tool calling loop
+        # Tool calling loop
+        llm_call_count = 0
+        tool_call_count = 0
+
         while True:
-            resp = await llm.achat(messages, tools=openai_tools)
+            llm_call_count += 1
+            llm_start = time.perf_counter()
+
+            try:
+                resp = await llm.achat(messages, tools=openai_tools)
+            except Exception as e:
+                logger.error(
+                    "llm_call_failed",
+                    model="gpt-4o-mini",
+                    llm_call_number=llm_call_count,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
+                result = await save_error_response(
+                    conversation_id, db, error_output.answer, error_output.model_dump(),
+                    memory, ctx
+                )
+                return StopEvent(result=result)
+
+            llm_duration = round((time.perf_counter() - llm_start) * 1000)
+
+            # Extract token usage from response
+            token_info = {}
+            raw_resp = getattr(resp, "raw", None)
+            if raw_resp and hasattr(raw_resp, "usage") and raw_resp.usage:
+                token_info = {
+                    "prompt_tokens": raw_resp.usage.prompt_tokens,
+                    "completion_tokens": raw_resp.usage.completion_tokens,
+                    "total_tokens": raw_resp.usage.total_tokens,
+                }
+
+            logger.info(
+                "llm_call_completed",
+                model="gpt-4o-mini",
+                llm_call_number=llm_call_count,
+                duration_ms=llm_duration,
+                **token_info,
+            )
 
             # Append assistant message (tool_calls OR final)
             messages.append(resp.message)
@@ -312,6 +392,7 @@ class ChatWorkflow(Workflow):
 
             # Execute ALL tool calls
             for call in tool_calls:
+                tool_call_count += 1
                 name = call.function.name
                 args_str = call.function.arguments
                 
@@ -321,12 +402,27 @@ class ChatWorkflow(Workflow):
                 else:
                     args = args_str
 
-                # Execute tool via registry
-                result = registry.execute_tool(name, **args)
+                logger.info("tool_call_started", tool_name=name, tool_args=args)
+
+                tool_start = time.perf_counter()
+                try:
+                    tool_result = registry.execute_tool(name, **args)
+                    tool_duration = round((time.perf_counter() - tool_start) * 1000)
+                    logger.info("tool_call_completed", tool_name=name, success=True, duration_ms=tool_duration)
+                except Exception as e:
+                    tool_duration = round((time.perf_counter() - tool_start) * 1000)
+                    logger.error(
+                        "tool_call_failed",
+                        tool_name=name,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        duration_ms=tool_duration,
+                    )
+                    tool_result = f"Error executing tool {name}: {str(e)}"
 
                 tool_msg = ChatMessage(
                     role=MessageRole.TOOL,
-                    content=result,
+                    content=tool_result,
                     additional_kwargs={"tool_call_id": call.id}
                 )
 
@@ -337,12 +433,25 @@ class ChatWorkflow(Workflow):
         try:
             output = RouterOutput.model_validate_json(raw_text)
         except Exception as e:
-            # raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
+            logger.warning(
+                "llm_invalid_json",
+                error_type=type(e).__name__,
+                raw_output_length=len(raw_text),
+            )
             result = await save_error_response(
                 conversation_id, db, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
+
+        logger.info(
+            "intent_detected",
+            intent=output.intent,
+            conversation_id=conversation_id,
+            llm_calls=llm_call_count,
+            tool_calls=tool_call_count,
+            duration_ms=round((time.perf_counter() - step_start) * 1000),
+        )
 
         if output.intent == "GENERAL":
             # Save ASSISTANT message to DB first and get ID
@@ -355,6 +464,8 @@ class ChatWorkflow(Workflow):
             }
             saved_assistant_msg = save_message(assistant_message, db)
             assistant_msg_id = saved_assistant_msg["id"] if saved_assistant_msg else None
+
+            logger.debug("message_saved", conversation_id=conversation_id, role="assistant", intent="GENERAL")
             
             # Put into memory with ID from DB
             memory.put(
@@ -379,7 +490,7 @@ class ChatWorkflow(Workflow):
             result["conversation_id"] = new_conv_id
             result["title"] = new_conv_title
         
-        # 🔀 Backend routing
+        # Backend routing
         if output.intent == "GENERAL":
             return StopEvent(result=result)
         elif output.intent == "PPTX":
@@ -399,16 +510,34 @@ class ChatWorkflow(Workflow):
     @step
     async def generate_slide(self, ctx: Context, ev: GenerateSlideEvent) -> StopEvent:
         """Slide generation step (merged from SlideWorkflow)."""
+        step_start = time.perf_counter()
         conversation_id = await ctx.store.get("conversation_id")
-        db = await ctx.store.get("db")  # Get db from context
+        db = await ctx.store.get("db")
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
 
+        logger.info("slide_generation_started", conversation_id=conversation_id)
+
         try:
+            intent_start = time.perf_counter()
             action, target_presentation_id, target_page_number = await detect_presentation_intent(
                 ev.user_input, conversation_id, llm, db
             )
-        except Exception:
+            logger.info(
+                "presentation_intent_detected",
+                action=action,
+                target_presentation_id=target_presentation_id,
+                target_page_number=target_page_number,
+                duration_ms=round((time.perf_counter() - intent_start) * 1000),
+            )
+        except Exception as e:
+            logger.error(
+                "slide_generation_failed",
+                phase="intent_detection",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                duration_ms=round((time.perf_counter() - step_start) * 1000),
+            )
             result = await save_error_response(
                 conversation_id, db, error_output.answer, error_output.model_dump(),
                 memory, ctx
@@ -485,7 +614,30 @@ class ChatWorkflow(Workflow):
         prompt_messages = [(msg.role, msg.content) for msg in messages]
         prompt = ChatPromptTemplate.from_messages(prompt_messages)
 
-        slide_output = await llm.astructured_predict(SlideOutput, prompt)
+        llm_start = time.perf_counter()
+        try:
+            slide_output = await llm.astructured_predict(SlideOutput, prompt)
+        except Exception as e:
+            logger.error(
+                "slide_generation_failed",
+                phase="llm_call",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                duration_ms=round((time.perf_counter() - step_start) * 1000),
+            )
+            result = await save_error_response(
+                conversation_id, db, error_output.answer, error_output.model_dump(),
+                memory, ctx
+            )
+            return StopEvent(result=result)
+
+        llm_duration = round((time.perf_counter() - llm_start) * 1000)
+        logger.info(
+            "slide_llm_call_completed",
+            model="gpt-4o-mini",
+            duration_ms=llm_duration,
+            total_pages=slide_output.total_pages,
+        )
 
         if target_page_number is not None and previous_pages:
             if len(slide_output.pages) == 1:
@@ -516,6 +668,7 @@ class ChatWorkflow(Workflow):
                 if not saved_presentation:
                     raise ValueError("Failed to create presentation")
                 presentation_id = saved_presentation["id"]
+                logger.info("presentation_created", presentation_id=presentation_id, topic=slide_output.topic, total_pages=slide_output.total_pages)
             else:
                 if not target_presentation_id:
                     raise ValueError("target_presentation_id required for EDIT action")
@@ -524,7 +677,7 @@ class ChatWorkflow(Workflow):
                     "conversation_id": conversation_id,
                     "topic": slide_output.topic,
                     "total_pages": slide_output.total_pages,
-                    "version": 1,  # Will be incremented in update_presentation
+                    "version": 1,
                 }
                 updated_presentation = update_presentation(
                     presentation=presentation,
@@ -536,7 +689,15 @@ class ChatWorkflow(Workflow):
                     raise ValueError("Failed to update presentation")
                 presentation_id = updated_presentation["id"]
                 set_active_presentation(conversation_id, presentation_id, db)
-        except (ValueError, Exception):
+                logger.info("presentation_updated", presentation_id=presentation_id, topic=slide_output.topic, total_pages=slide_output.total_pages)
+        except (ValueError, Exception) as e:
+            logger.error(
+                "slide_generation_failed",
+                phase="save_presentation",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                duration_ms=round((time.perf_counter() - step_start) * 1000),
+            )
             result = await save_error_response(
                 conversation_id, db, error_output.answer, error_output.model_dump(),
                 memory, ctx
@@ -571,6 +732,14 @@ class ChatWorkflow(Workflow):
             )
         await ctx.store.set("chat_history", memory)
         await process_memory_truncation(ctx, memory)
+
+        logger.info(
+            "slide_generation_completed",
+            action=action,
+            presentation_id=presentation_id,
+            total_pages=slide_output.total_pages,
+            duration_ms=round((time.perf_counter() - step_start) * 1000),
+        )
 
         result = slide_output.model_dump()
         result["slide_id"] = presentation_id
