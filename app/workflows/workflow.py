@@ -30,6 +30,7 @@ from app.repositories.presentation_repository import (
 )
 from app.utils.formatters import format_user_facts_for_prompt
 from app.utils.title_generator import generate_conversation_title
+from app.utils.helpers import save_error_response
 from app.tools import registry
 from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.chat_service import validate_conversation_access
@@ -337,7 +338,11 @@ class ChatWorkflow(Workflow):
             output = RouterOutput.model_validate_json(raw_text)
         except Exception as e:
             # raise ValueError(f"Invalid LLM JSON output:\n{raw_text}") from e
-            return StopEvent(result=error_output.model_dump())
+            result = await save_error_response(
+                conversation_id, db, error_output.answer, error_output.model_dump(),
+                memory, ctx
+            )
+            return StopEvent(result=result)
 
         if output.intent == "GENERAL":
             # Save ASSISTANT message to DB first and get ID
@@ -385,7 +390,11 @@ class ChatWorkflow(Workflow):
                 new_conversation_title=new_conv_title
             )
         else:
-            return StopEvent(result=error_output.model_dump())
+            result = await save_error_response(
+                conversation_id, db, error_output.answer, error_output.model_dump(),
+                memory, ctx
+            )
+            return StopEvent(result=result)
 
     @step
     async def generate_slide(self, ctx: Context, ev: GenerateSlideEvent) -> StopEvent:
@@ -400,7 +409,11 @@ class ChatWorkflow(Workflow):
                 ev.user_input, conversation_id, llm, db
             )
         except Exception:
-            return StopEvent(result=error_output.model_dump())
+            result = await save_error_response(
+                conversation_id, db, error_output.answer, error_output.model_dump(),
+                memory, ctx
+            )
+            return StopEvent(result=result)
 
         previous_pages = None
         total_pages = None
@@ -524,7 +537,11 @@ class ChatWorkflow(Workflow):
                 presentation_id = updated_presentation["id"]
                 set_active_presentation(conversation_id, presentation_id, db)
         except (ValueError, Exception):
-            return StopEvent(result=error_output.model_dump())
+            result = await save_error_response(
+                conversation_id, db, error_output.answer, error_output.model_dump(),
+                memory, ctx
+            )
+            return StopEvent(result=result)
 
         try:
             assistant_message: Message = {
