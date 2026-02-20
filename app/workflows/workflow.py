@@ -228,7 +228,7 @@ class ChatWorkflow(Workflow):
         chat_history = load_chat_history(conversation_id, db)
 
         # Memory
-        memory = ChatMemoryBuffer.from_defaults(token_limit=200)
+        memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
         await ctx.store.set("chat_history", memory)
 
         for chat in chat_history:
