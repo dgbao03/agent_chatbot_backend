@@ -1,8 +1,8 @@
 """
 Auth Router - Authentication endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from jose import JWTError
 import os
@@ -10,11 +10,8 @@ from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
     TokenResponse,
-    RefreshTokenRequest,
     OAuthURLResponse,
-    OAuthCallbackRequest,
     CheckProvidersResponse,
-    SignOutRequest,
     UserInfoResponse,
     ForgotPasswordRequest,
     ResetPasswordRequest,
@@ -59,33 +56,51 @@ load_dotenv()
 # Frontend URL for OAuth redirects
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5174")
 
+# Cookie settings for refresh token (httpOnly, 7 days)
+REFRESH_TOKEN_COOKIE_KEY = "refresh_token"
+REFRESH_TOKEN_MAX_AGE = 7 * 24 * 3600  # 7 days in seconds
+
+
+def _set_refresh_token_cookie(response, refresh_token: str) -> None:
+    """Set httpOnly cookie for refresh token."""
+    response.set_cookie(
+        key=REFRESH_TOKEN_COOKIE_KEY,
+        value=refresh_token,
+        httponly=True,
+        secure=False,  # True when using HTTPS in production
+        samesite="lax",
+        max_age=REFRESH_TOKEN_MAX_AGE,
+        path="/auth",
+    )
+
+
+def _create_token_response(access_token: str, user_id: str, email: str, refresh_token: str) -> JSONResponse:
+    """Create JSONResponse with access_token in body and refresh_token in cookie."""
+    content = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user_id,
+        "email": email,
+    }
+    response = JSONResponse(content=content)
+    _set_refresh_token_cookie(response, refresh_token)
+    return response
+
+
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register")
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """
     Register a new user with email and password.
-    
-    Args:
-        request: Registration data (email, password, name)
-        db: Database session
-        
-    Returns:
-        TokenResponse with access_token, refresh_token, and user info
-        
-    Raises:
-        HTTPException 400: If email already exists
+    Returns access_token in JSON, refresh_token in httpOnly cookie.
     """
-    # Check if user already exists
     existing_user = get_user_by_email(request.email, db)
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Hash password
+
     hashed_pwd = hash_password(request.password)
-    
-    # Create user data
     user_data = {
         "email": request.email,
         "hashed_password": hashed_pwd,
@@ -93,109 +108,73 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         "providers": ["email"],
         "email_verified": False
     }
-    
-    # Create user in database
+
     new_user = create_user(user_data, db)
     if not new_user:
         raise HTTPException(status_code=500, detail="Failed to create user")
-    
-    # Generate tokens
+
     access_token = create_access_token(str(new_user.id))
     refresh_token = create_refresh_token(str(new_user.id))
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user_id=str(new_user.id),
-        email=new_user.email
-    )
+
+    return _create_token_response(access_token, str(new_user.id), new_user.email, refresh_token)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     """
     Login with email and password.
-    
-    Args:
-        request: Login credentials (email, password)
-        db: Database session
-        
-    Returns:
-        TokenResponse with access_token, refresh_token, and user info
-        
-    Raises:
-        HTTPException 401: If credentials are invalid
+    Returns access_token in JSON, refresh_token in httpOnly cookie.
     """
-    # Get user by email
     user = get_user_by_email(request.email, db)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    # Verify password
+
     if not user.hashed_password:
         raise HTTPException(status_code=401, detail="Invalid login method")
-    
+
     if not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    # Generate tokens
+
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer",
-        user_id=str(user.id),
-        email=user.email
-    )
+
+    return _create_token_response(access_token, str(user.id), user.email, refresh_token)
 
 
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+@router.post("/refresh")
+async def refresh_token(request: Request, db: Session = Depends(get_db)):
     """
-    Refresh access token using refresh token.
-    
-    Args:
-        request: Refresh token request
-        db: Database session
-        
-    Returns:
-        TokenResponse with new access_token and same refresh_token
-        
-    Raises:
-        HTTPException 401: If refresh token is invalid or blacklisted
+    Refresh access token using refresh token from httpOnly cookie.
+    Returns only new access_token in JSON (refresh_token stays in cookie).
     """
+    refresh_token_value = request.cookies.get(REFRESH_TOKEN_COOKIE_KEY)
+    if not refresh_token_value:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+
     try:
-        # Verify refresh token
-        payload = verify_refresh_token(request.refresh_token)
+        payload = verify_refresh_token(refresh_token_value)
         user_id = payload.get("sub")
         jti = payload.get("jti")
-        
+
         if not user_id or not jti:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
-        
-        # Check if refresh token is blacklisted
+
         if is_token_blacklisted(jti, db):
             raise HTTPException(status_code=401, detail="Token has been revoked")
-        
-        # Get user from database
+
         user = get_user_by_id(user_id, db)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
-        
-        # Generate new access token
+
         new_access_token = create_access_token(str(user.id))
-        
-        return TokenResponse(
-            access_token=new_access_token,
-            refresh_token=request.refresh_token,  # Return same refresh token
-            token_type="bearer",
-            user_id=str(user.id),
-            email=user.email
-        )
-        
+
+        return JSONResponse(content={
+            "access_token": new_access_token,
+            "token_type": "bearer",
+            "user_id": str(user.id),
+            "email": user.email,
+        })
+
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -280,10 +259,12 @@ async def google_oauth_callback(
         # Generate JWT tokens
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))
-        
-        # Redirect to frontend with tokens in URL
-        callback_url = f"{FRONTEND_URL}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
-        return RedirectResponse(url=callback_url)
+
+        # Redirect to frontend with access_token in URL, refresh_token in httpOnly cookie
+        callback_url = f"{FRONTEND_URL}/auth/callback?access_token={access_token}"
+        response = RedirectResponse(url=callback_url)
+        _set_refresh_token_cookie(response, refresh_token)
+        return response
         
     except Exception as e:
         # Redirect to frontend with error
@@ -370,58 +351,34 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 
 
 @router.post("/signout")
-async def sign_out(
-    request: SignOutRequest,
-    current_user_id: str = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
+async def sign_out(request: Request, db: Session = Depends(get_db)):
     """
-    Sign out user by blacklisting refresh token.
-    
-    Args:
-        request: Sign out request with refresh token
-        current_user_id: Current authenticated user ID
-        db: Database session
-        
-    Returns:
-        Success message
-        
-    Raises:
-        HTTPException 401: If refresh token is invalid
-        HTTPException 500: If blacklist operation fails
+    Sign out user by blacklisting refresh token from cookie and clearing cookie.
     """
-    try:
-        # Verify and decode refresh token
-        payload = verify_refresh_token(request.refresh_token)
-        refresh_jti = payload.get("jti")
-        refresh_exp_timestamp = payload.get("exp")
-        
-        if not refresh_jti or not refresh_exp_timestamp:
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
-        
-        # Convert exp timestamp to datetime
-        refresh_exp = datetime.fromtimestamp(refresh_exp_timestamp, tz=timezone.utc)
-        
-        # Add refresh token to blacklist
-        success = add_token_to_blacklist(
-            token_jti=refresh_jti,
-            user_id=current_user_id,
-            token_type="refresh",
-            expires_at=refresh_exp,
-            db=db
-        )
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to sign out")
-        
-        return {"message": "Successfully signed out"}
-        
-    except JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to sign out")
+    response = JSONResponse(content={"message": "Successfully signed out"})
+    response.delete_cookie(key=REFRESH_TOKEN_COOKIE_KEY, path="/auth")
+
+    refresh_token_value = request.cookies.get(REFRESH_TOKEN_COOKIE_KEY)
+    if refresh_token_value:
+        try:
+            payload = verify_refresh_token(refresh_token_value)
+            refresh_jti = payload.get("jti")
+            refresh_exp_timestamp = payload.get("exp")
+            user_id = payload.get("sub")
+
+            if refresh_jti and refresh_exp_timestamp and user_id:
+                refresh_exp = datetime.fromtimestamp(refresh_exp_timestamp, tz=timezone.utc)
+                add_token_to_blacklist(
+                    token_jti=refresh_jti,
+                    user_id=user_id,
+                    token_type="refresh",
+                    expires_at=refresh_exp,
+                    db=db
+                )
+        except (JWTError, Exception):
+            pass  # Cookie cleared anyway, blacklist is best-effort
+
+    return response
 
 
 @router.get("/me", response_model=UserInfoResponse)
