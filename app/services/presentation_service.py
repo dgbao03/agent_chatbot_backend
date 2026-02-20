@@ -2,13 +2,16 @@
 Presentation service - Business logic for presentation management.
 """
 from typing import Optional, Tuple
-from llama_index.core.prompts import ChatPromptTemplate
+from llama_index.core.llms import ChatMessage, MessageRole
 from app.config.pydantic_outputs import SlideIntentOutput
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
+from app.logging import get_logger
 from app.repositories.presentation_repository import (
     list_presentations,
     get_active_presentation
 )
+
+logger = get_logger(__name__)
 
 
 async def detect_presentation_intent(
@@ -76,17 +79,29 @@ Output:
 IMPORTANT: Carefully match user request with presentation topics!
 """
         
-        # Create prompt
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("user", user_message)
-        ])
-        
         # Call LLM with structured output
-        result = await llm.astructured_predict(
-            SlideIntentOutput,
-            prompt
-        )
+        intent_messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content=system_prompt),
+            ChatMessage(role=MessageRole.USER, content=user_message),
+        ]
+        resp = await llm.achat(intent_messages, response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "SlideIntentOutput",
+                "schema": SlideIntentOutput.model_json_schema(),
+            },
+        })
+        result = SlideIntentOutput.model_validate_json(resp.message.content)
+
+        token_info = {}
+        raw_resp = getattr(resp, "raw", None)
+        if raw_resp and hasattr(raw_resp, "usage") and raw_resp.usage:
+            token_info = {
+                "prompt_tokens": raw_resp.usage.prompt_tokens,
+                "completion_tokens": raw_resp.usage.completion_tokens,
+                "total_tokens": raw_resp.usage.total_tokens,
+            }
+        logger.info("intent_detection_llm_call", model="gpt-4o-mini", **token_info)
         
         # Validate and fix result
         if result.action in ["EDIT_SPECIFIC", "EDIT_ACTIVE"]:

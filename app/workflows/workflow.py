@@ -8,7 +8,6 @@ from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
 from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.core.prompts import ChatPromptTemplate
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.workflow.events import Event
 
@@ -42,7 +41,7 @@ from app.logging import get_logger
 logger = get_logger(__name__)
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
-llm_security = OpenAI(model="gpt-3.5-turbo", temperature=0, request_timeout=30.0)  # Fast LLM for security check
+llm_security = OpenAI(model="gpt-4o-mini", temperature=0, request_timeout=30.0)  # LLM for security check
 
 class StreamResponseEvent(Event):
     content: str
@@ -91,19 +90,34 @@ class ChatWorkflow(Workflow):
         try:
             # Call LLM for security classification
             llm_start = time.perf_counter()
-            result = await llm_security.astructured_predict(
-                SecurityOutput,
-                ChatPromptTemplate.from_messages([
-                    ("system", system_prompt),
-                    ("user", user_input)
-                ])
-            )
+            security_messages = [
+                ChatMessage(role=MessageRole.SYSTEM, content=system_prompt),
+                ChatMessage(role=MessageRole.USER, content=user_input),
+            ]
+            resp = await llm_security.achat(security_messages, response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "SecurityOutput",
+                    "schema": SecurityOutput.model_json_schema(),
+                },
+            })
+            result = SecurityOutput.model_validate_json(resp.message.content)
             llm_duration = round((time.perf_counter() - llm_start) * 1000)
+
+            token_info = {}
+            raw_resp = getattr(resp, "raw", None)
+            if raw_resp and hasattr(raw_resp, "usage") and raw_resp.usage:
+                token_info = {
+                    "prompt_tokens": raw_resp.usage.prompt_tokens,
+                    "completion_tokens": raw_resp.usage.completion_tokens,
+                    "total_tokens": raw_resp.usage.total_tokens,
+                }
 
             logger.info(
                 "security_check_llm_call",
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 duration_ms=llm_duration,
+                **token_info,
             )
             
             if result.classification == "EXPLOIT":
@@ -607,16 +621,21 @@ class ChatWorkflow(Workflow):
         else:
             system_content += "\n\nEDIT the entire presentation based on the user's request below."
 
-        messages = [
+        slide_messages = [
             ChatMessage(role=MessageRole.SYSTEM, content=system_content),
+            ChatMessage(role=MessageRole.USER, content=f"User Request: {ev.user_input}"),
         ]
-        messages.append(ChatMessage(role=MessageRole.USER, content=f"User Request: {ev.user_input}"))
-        prompt_messages = [(msg.role, msg.content) for msg in messages]
-        prompt = ChatPromptTemplate.from_messages(prompt_messages)
 
         llm_start = time.perf_counter()
         try:
-            slide_output = await llm.astructured_predict(SlideOutput, prompt)
+            resp = await llm.achat(slide_messages, response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "SlideOutput",
+                    "schema": SlideOutput.model_json_schema(),
+                },
+            })
+            slide_output = SlideOutput.model_validate_json(resp.message.content)
         except Exception as e:
             logger.error(
                 "slide_generation_failed",
@@ -632,11 +651,22 @@ class ChatWorkflow(Workflow):
             return StopEvent(result=result)
 
         llm_duration = round((time.perf_counter() - llm_start) * 1000)
+
+        token_info = {}
+        raw_resp = getattr(resp, "raw", None)
+        if raw_resp and hasattr(raw_resp, "usage") and raw_resp.usage:
+            token_info = {
+                "prompt_tokens": raw_resp.usage.prompt_tokens,
+                "completion_tokens": raw_resp.usage.completion_tokens,
+                "total_tokens": raw_resp.usage.total_tokens,
+            }
+
         logger.info(
             "slide_llm_call_completed",
             model="gpt-4o-mini",
             duration_ms=llm_duration,
             total_pages=slide_output.total_pages,
+            **token_info,
         )
 
         if target_page_number is not None and previous_pages:

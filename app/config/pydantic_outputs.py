@@ -36,6 +36,7 @@ class SlideOutput(BaseModel):
         description="Intent luôn luôn là PPTX cho slide generation output. Đây là identifier để frontend biết đây là response từ slide generation workflow."
     )
     answer: str = Field(
+        default="I have created a slide about the topic you requested.",
         description="Câu trả lời thông báo cho người dùng về kết quả tạo slide. Ví dụ: 'Tôi đã tạo slide thành công về chủ đề Machine Learning', 'Slide đã được tạo với nội dung về lịch sử Việt Nam', etc. Câu trả lời phải ngắn gọn, rõ ràng và thân thiện với người dùng."
     )
     topic: str = Field(
