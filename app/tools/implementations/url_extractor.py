@@ -11,9 +11,9 @@ class URLExtractorTool(BaseTool):
     """
     
     name = "extract_url_content"
-    summary = "Trích xuất nội dung từ URL website để tóm tắt. Sử dụng khi user cung cấp URL và yêu cầu đọc/tóm tắt."
+    summary = "Extract content from a website URL for summarization. Use when user provides a URL and requests to read/summarize it."
     category = "content"
-    description = """Extract and parse article text content from a web URL. Use when user provides URL and explicitly requests to read or summarize it (keywords: "tóm tắt link", "summarize", "đọc bài viết"; examples: "Tóm tắt https://techcrunch.com/article", "Summarize this: https://..."). Requires valid http/https URL. Do NOT use when URL appears without summarize request; returns article title and text content."""
+    description = """Extract and parse article text content from a web URL. Use when user provides URL and explicitly requests to read or summarize it (keywords: "summarize", "read", "extract"; examples: "Summarize https://techcrunch.com/article", "Read this article: https://..."). Requires valid http/https URL. Do NOT use when URL appears without summarize request; returns article title and text content."""
     
     def execute(self, url: str) -> str:
         """

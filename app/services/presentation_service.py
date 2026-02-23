@@ -42,7 +42,7 @@ async def detect_presentation_intent(
         
         # Build context
         if not presentations:
-            context = "Chưa có presentation nào trong conversation."
+            context = "No presentations exist in this conversation yet."
         else:
             context = "===== AVAILABLE PRESENTATIONS =====\n\n"
             for i, pres in enumerate(presentations, 1):

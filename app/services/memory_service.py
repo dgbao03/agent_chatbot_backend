@@ -123,16 +123,14 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         
         # Tạo prompt cho LLM
         if not old_summary:
-            # Lần đầu tiên, không có summary cũ
             system_prompt = SUMMARY_INITIAL_PROMPT
-            user_prompt = f"Hãy tóm tắt cuộc hội thoại sau đây:\n\n{formatted_messages}"
+            user_prompt = f"Please summarize the following conversation:\n\n{formatted_messages}"
         else:
-            # Có summary cũ, kết hợp với messages mới
             system_prompt = SUMMARY_UPDATE_PROMPT
             user_prompt = (
-                f"Tóm tắt cũ:\n{old_summary}\n\n"
-                f"Cuộc hội thoại mới:\n{formatted_messages}\n\n"
-                f"Hãy tạo tóm tắt mới kết hợp cả hai phần trên."
+                f"Previous summary:\n{old_summary}\n\n"
+                f"New conversation:\n{formatted_messages}\n\n"
+                f"Please create a new summary combining both sections above."
             )
         
         # Gọi LLM để tạo summary
@@ -162,7 +160,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         user_count = sum(1 for msg in messages if msg.role.value == "user")
         assistant_count = sum(1 for msg in messages if msg.role.value == "assistant")
         return (
-            f"[SUMMARY] Đã tóm tắt {user_count} lượt hỏi và "
-            f"{assistant_count} lượt trả lời từ cuộc hội thoại trước đó."
+            f"[SUMMARY] Summarized {user_count} user messages and "
+            f"{assistant_count} assistant responses from the previous conversation."
         )
 

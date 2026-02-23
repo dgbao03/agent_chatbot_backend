@@ -14,9 +14,9 @@ class AddUserFactTool(BaseTool):
     """
     
     name = "add_user_fact"
-    summary = "Lưu thông tin cá nhân của user (key-value). Sử dụng khi user yêu cầu ghi nhớ thông tin về họ."
+    summary = "Save user's personal information (key-value). Use when user requests to remember info about them."
     category = "user_data"
-    description = """Save user's personal information as key-value pair to long-term memory. Use ONLY when user explicitly requests to remember their info (keywords: "nhớ", "lưu", "remember", "save"; examples: "Nhớ rằng tôi tên là Bảo", "Remember I live in Hanoi"). NEVER auto-detect and save info from casual conversation; stores as key-value pair and returns confirmation."""
+    description = """Save user's personal information as key-value pair to long-term memory. Use ONLY when user explicitly requests to remember their info (keywords: "remember", "save", "store"; examples: "Remember that my name is Bao", "Save that I live in Hanoi"). NEVER auto-detect and save info from casual conversation; stores as key-value pair and returns confirmation."""
     
     def execute(self, key: str, value: str) -> str:
         """
@@ -34,13 +34,13 @@ class AddUserFactTool(BaseTool):
             user_id = get_current_user_id()
             db = get_current_db_session()
             if not user_id:
-                return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
+                return "Error: Cannot determine user_id. Please log in again."
             
             if not key or not key.strip():
-                return "Lỗi: Key không được để trống."
+                return "Error: Key cannot be empty."
             
             if not value or not value.strip():
-                return "Lỗi: Value không được để trống."
+                return "Error: Value cannot be empty."
             
             key_clean = key.strip()
             value_clean = value.strip()
@@ -53,12 +53,12 @@ class AddUserFactTool(BaseTool):
             }
             saved_fact = upsert_user_fact(fact, db)
             if saved_fact:
-                return f"Đã lưu: {key_clean} = {value_clean}"
+                return f"Saved: {key_clean} = {value_clean}"
             else:
-                return "Lỗi: Không thể lưu thông tin."
+                return "Error: Failed to save information."
                     
         except Exception as e:
-            return f"Lỗi khi thêm user fact: {str(e)}"
+            return f"Error adding user fact: {str(e)}"
 
 
 class UpdateUserFactTool(BaseTool):
@@ -67,9 +67,9 @@ class UpdateUserFactTool(BaseTool):
     """
     
     name = "update_user_fact"
-    summary = "Cập nhật thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu sửa đổi thông tin."
+    summary = "Update a saved user fact by key. Use when user requests to modify their saved information."
     category = "user_data"
-    description = """Update an existing user fact by key with a new value. Use ONLY when user explicitly requests to change their saved info (keywords: "sửa", "cập nhật", "update", "change"; examples: "Sửa tuổi thành 30", "Update my name to Bao Do"). Key must already exist, otherwise returns error; returns confirmation with updated key-value."""
+    description = """Update an existing user fact by key with a new value. Use ONLY when user explicitly requests to change their saved info (keywords: "update", "change", "modify"; examples: "Change my age to 30", "Update my name to Bao Do"). Key must already exist, otherwise returns error; returns confirmation with updated key-value."""
     
     def execute(self, key: str, value: str) -> str:
         """
@@ -87,13 +87,13 @@ class UpdateUserFactTool(BaseTool):
             user_id = get_current_user_id()
             db = get_current_db_session()
             if not user_id:
-                return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
+                return "Error: Cannot determine user_id. Please log in again."
             
             if not key or not key.strip():
-                return "Lỗi: Key không được để trống."
+                return "Error: Key cannot be empty."
             
             if not value or not value.strip():
-                return "Lỗi: Value không được để trống."
+                return "Error: Value cannot be empty."
             
             key_clean = key.strip()
             value_clean = value.strip()
@@ -103,7 +103,7 @@ class UpdateUserFactTool(BaseTool):
             fact = find_fact_by_key(facts, key_clean)
             
             if not fact:
-                return f"Không tìm thấy thông tin với key: {key_clean}. Sử dụng add_user_fact để thêm mới."
+                return f"No information found for key: {key_clean}. Use add_user_fact to add new."
             
             # Update fact
             fact_to_update: UserFact = {
@@ -113,12 +113,12 @@ class UpdateUserFactTool(BaseTool):
             }
             saved_fact = upsert_user_fact(fact_to_update, db)
             if saved_fact:
-                return f"Đã cập nhật: {key_clean} = {value_clean}"
+                return f"Updated: {key_clean} = {value_clean}"
             else:
-                return "Lỗi: Không thể lưu thông tin."
+                return "Error: Failed to save information."
                     
         except Exception as e:
-            return f"Lỗi khi cập nhật user fact: {str(e)}"
+            return f"Error updating user fact: {str(e)}"
 
 
 class DeleteUserFactTool(BaseTool):
@@ -127,9 +127,9 @@ class DeleteUserFactTool(BaseTool):
     """
     
     name = "delete_user_fact"
-    summary = "Quên/Xóa thông tin cá nhân đã lưu của user theo key. Sử dụng khi user yêu cầu quên/xóa thông tin Facts về người dùng."
+    summary = "Forget/Delete a saved user fact by key. Use when user requests to forget/remove their saved information."
     category = "user_data"
-    description = """Delete a saved user fact by key from long-term memory. Use when user explicitly requests to remove or forget their info (keywords: "xóa", "quên", "bỏ đi", "forget", "remove"; examples: "Xóa tên tôi", "Quên tuổi của tôi", "Forget my name"). NEVER auto-delete; returns confirmation or error if key not found."""
+    description = """Delete a saved user fact by key from long-term memory. Use when user explicitly requests to remove or forget their info (keywords: "delete", "forget", "remove"; examples: "Delete my name", "Forget my age", "Remove my address"). NEVER auto-delete; returns confirmation or error if key not found."""
     
     def execute(self, key: str) -> str:
         """
@@ -146,10 +146,10 @@ class DeleteUserFactTool(BaseTool):
             user_id = get_current_user_id()
             db = get_current_db_session()
             if not user_id:
-                return "Lỗi: Không thể xác định user_id. Vui lòng đăng nhập lại."
+                return "Error: Cannot determine user_id. Please log in again."
             
             if not key or not key.strip():
-                return "Lỗi: Key không được để trống."
+                return "Error: Key cannot be empty."
             
             key_clean = key.strip()
             
@@ -158,13 +158,13 @@ class DeleteUserFactTool(BaseTool):
             fact = find_fact_by_key(facts, key_clean)
             
             if not fact:
-                return f"Không tìm thấy thông tin với key: {key_clean}"
+                return f"No information found for key: {key_clean}"
             
             # Delete fact
             if delete_user_fact_repo(user_id, key_clean, db):
-                return f"Đã xóa thông tin: {key_clean}"
+                return f"Deleted: {key_clean}"
             else:
-                return "Lỗi: Không thể xóa thông tin."
+                return "Error: Failed to delete information."
                     
         except Exception as e:
-            return f"Lỗi khi xóa user fact: {str(e)}"
+            return f"Error deleting user fact: {str(e)}"

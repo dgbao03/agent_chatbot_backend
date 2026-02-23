@@ -26,7 +26,7 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         if not facts:
             return ""
         
-        formatted_lines = ["USER FACTS (Thông tin về người dùng):"]
+        formatted_lines = ["USER FACTS (Information about the user):"]
         for fact in facts:
             key = fact.get("key", "")
             value = fact.get("value", "")

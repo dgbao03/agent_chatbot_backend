@@ -10,9 +10,9 @@ class WeatherTool(BaseTool):
     """
     
     name = "get_weather"
-    summary = "Lấy thông tin thời tiết hiện tại của một thành phố. Sử dụng khi user hỏi về thời tiết."
+    summary = "Get current weather information for a city. Use when user asks about weather."
     category = "external_api"
-    description = """Fetch current weather information for a specific city. Use when user explicitly asks about weather conditions (e.g., "thời tiết Hà Nội?", "weather in Tokyo today"). Do NOT use when city name appears in context without a weather request; returns temperature and weather summary."""
+    description = """Fetch current weather information for a specific city. Use when user explicitly asks about weather conditions (e.g., "weather in Hanoi?", "weather in Tokyo today"). Do NOT use when city name appears in context without a weather request; returns temperature and weather summary."""
     
     def execute(self, city: str) -> str:
         """
@@ -24,4 +24,4 @@ class WeatherTool(BaseTool):
         Returns:
             Weather information string
         """
-        return f"[WEATHER] {city}: 30°C, nắng nhẹ"
+        return f"[WEATHER] {city}: 30°C, partly sunny"
