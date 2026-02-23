@@ -295,30 +295,30 @@ class ChatWorkflow(Workflow):
 
         logger.debug("chat_history_loaded", conversation_id=conversation_id, message_count=len(chat_history))
 
-        # Load và format user facts để thêm vào System Prompt
+        # Load and format user facts for System Prompt
         user_facts_text = format_user_facts_for_prompt(user_id)
         
-        # Tạo System Prompt content
+        # Build System Prompt content
         system_content = ROUTER_ANSWER_PROMPT + "\n\n"
         
-        # Thêm tool instructions + best practices
+        # Append tool instructions + best practices
         tool_instructions = registry.get_tool_instructions()
         if tool_instructions:
             system_content += tool_instructions + "\n\n"
         system_content += TOOL_BEST_PRACTICES + "\n\n"
         
-        # Thêm user facts nếu có
+        # Append user facts if available
         if user_facts_text:
             system_content += user_facts_text + "\n\n"
         
-        # Format history vào System Prompt nếu có
+        # Format history into System Prompt if available
         if history:
             history_text = "\n===== RECENT CHAT HISTORY =====\n"
             for msg in history:
                 history_text += f"{msg.role.value}: {msg.content}\n"
             system_content += "\n\n" + history_text
         
-        # Load và thêm chat summary nếu có (sau Chat History)
+        # Load and append chat summary if available (after Chat History)
         summary_data = load_summary(conversation_id, db)
         if summary_data.get("summary_content"):
             summary_text = (
@@ -413,7 +413,7 @@ class ChatWorkflow(Workflow):
                 name = call.function.name
                 args_str = call.function.arguments
                 
-                # Parse arguments từ JSON string
+                # Parse arguments from JSON string
                 if isinstance(args_str, str):
                     args = json.loads(args_str)
                 else:
@@ -495,7 +495,7 @@ class ChatWorkflow(Workflow):
         
         await ctx.store.set("chat_history", memory)
 
-        # Xử lý memory truncation và summary cho GENERAL case
+        # Handle memory truncation and summary for GENERAL case
         if output.intent == "GENERAL":
             await process_memory_truncation(ctx, memory)
 

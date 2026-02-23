@@ -8,39 +8,39 @@ from typing import Optional
 
 def generate_conversation_title(user_input: str) -> str:
     """
-    Generate conversation title từ user input.
-    Ưu tiên tốc độ - không dùng LLM, không cần NLP library.
+    Generate conversation title from user input.
+    Prioritizes speed - no LLM calls, no NLP library required.
     
     Args:
-        user_input: User message đầu tiên
+        user_input: First user message
         
     Returns:
         Title string (max 60 characters)
     """
     user_input = user_input.strip()
     
-    # Case 1: Input ngắn (< 60 chars) → dùng trực tiếp
+    # Case 1: Short input (< 60 chars) → use directly
     if len(user_input) <= 60:
         return user_input
     
-    # Case 2: Extract cụm từ quan trọng bằng pattern matching
+    # Case 2: Extract important phrase via pattern matching
     important_phrase = extract_important_phrase(user_input)
     if important_phrase and len(important_phrase) <= 60:
         return format_title(important_phrase)
     
-    # Case 3: Extract keyword đơn lẻ
+    # Case 3: Extract single keyword
     keyword = extract_main_keyword(user_input)
     if keyword and len(keyword) <= 60:
         return format_title(keyword)
     
-    # Case 4: Fallback - truncate thông minh
+    # Case 4: Fallback - smart truncate
     return smart_truncate(user_input, max_length=60)
 
 
 def extract_important_phrase(text: str) -> Optional[str]:
     """
-    Tìm cụm từ quan trọng (2-3 words) bằng pattern matching.
-    Ưu tiên các pattern: "about X", "for X", "on X", "regarding X"
+    Find important phrase (2-3 words) via pattern matching.
+    Prioritizes patterns: "about X", "for X", "on X", "regarding X"
     """
     text_lower = text.lower()
     
@@ -54,12 +54,12 @@ def extract_important_phrase(text: str) -> Optional[str]:
     for pattern in patterns:
         matches = re.findall(pattern, text_lower)
         if matches:
-            # Lấy match đầu tiên (thường là quan trọng nhất)
+            # Take the first match (usually the most important)
             phrase = matches[0].strip()
-            if 5 <= len(phrase) <= 50:  # Độ dài hợp lý
+            if 5 <= len(phrase) <= 50:  # Reasonable length
                 return phrase
     
-    # Pattern 2: Tìm cụm từ kỹ thuật (2-3 words liên tiếp, không có stop words)
+    # Pattern 2: Find technical phrases (2-3 consecutive words, no stop words)
     technical_phrases = find_technical_phrases(text_lower)
     if technical_phrases:
         return technical_phrases[0]
@@ -69,7 +69,7 @@ def extract_important_phrase(text: str) -> Optional[str]:
 
 def find_technical_phrases(text: str) -> list[str]:
     """
-    Tìm các cụm từ kỹ thuật (2-3 words) không chứa stop words.
+    Find technical phrases (2-3 words) without stop words.
     """
     stop_words = {
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -85,7 +85,7 @@ def find_technical_phrases(text: str) -> list[str]:
     words = re.findall(r'\b\w+\b', text)
     phrases = []
     
-    # Tạo bigrams (2 words)
+    # Build bigrams (2 words)
     for i in range(len(words) - 1):
         word1 = words[i].lower()
         word2 = words[i + 1].lower()
@@ -94,7 +94,7 @@ def find_technical_phrases(text: str) -> list[str]:
             if 5 <= len(phrase) <= 50:
                 phrases.append(phrase)
     
-    # Tạo trigrams (3 words) nếu bigram không đủ
+    # Build trigrams (3 words) if no bigrams found
     if not phrases:
         for i in range(len(words) - 2):
             word1 = words[i].lower()
@@ -107,15 +107,15 @@ def find_technical_phrases(text: str) -> list[str]:
                 if 5 <= len(phrase) <= 50:
                     phrases.append(phrase)
     
-    # Sort by length (ưu tiên cụm từ dài hơn - thường mô tả rõ hơn)
+    # Sort by length (prefer longer phrases - usually more descriptive)
     phrases.sort(key=len, reverse=True)
     return phrases
 
 
 def extract_main_keyword(text: str) -> Optional[str]:
     """
-    Extract keyword đơn lẻ quan trọng nhất.
-    Ưu tiên: danh từ, tên riêng, từ dài (> 3 chars)
+    Extract the most important single keyword.
+    Prioritizes: nouns, proper nouns, long words (> 3 chars)
     """
     stop_words = {
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -131,25 +131,25 @@ def extract_main_keyword(text: str) -> Optional[str]:
     
     words = re.findall(r'\b\w+\b', text.lower())
     
-    # Loại bỏ stop words và từ ngắn
+    # Remove stop words and short words
     keywords = [w for w in words if w not in stop_words and len(w) > 3]
     
     if not keywords:
         return None
     
-    # Ưu tiên từ dài hơn (thường là keyword quan trọng hơn)
+    # Prefer longer words (usually more important keywords)
     keywords.sort(key=len, reverse=True)
     return keywords[0]
 
 
 def format_title(text: str) -> str:
     """
-    Format title: capitalize mỗi từ, loại bỏ punctuation cuối.
+    Format title: capitalize each word, remove trailing punctuation.
     """
-    # Loại bỏ punctuation ở cuối
+    # Remove trailing punctuation
     text = text.rstrip('.,!?;:')
     
-    # Capitalize mỗi từ
+    # Capitalize each word
     words = text.split()
     formatted_words = [word.capitalize() for word in words]
     
@@ -158,22 +158,22 @@ def format_title(text: str) -> str:
 
 def smart_truncate(text: str, max_length: int = 60) -> str:
     """
-    Truncate thông minh: cắt tại dấu câu hoặc từ, không cắt giữa từ.
+    Smart truncate: cut at punctuation or word boundary, never mid-word.
     """
     if len(text) <= max_length:
         return text
     
-    # Tìm vị trí cắt tốt nhất (tại dấu câu hoặc space)
+    # Find the best cut position (at punctuation or space)
     cut_pos = max_length
     
-    # Ưu tiên cắt tại dấu câu
+    # Prefer cutting at punctuation
     for punct in ['.', '!', '?', ';', ':']:
         pos = text.rfind(punct, 0, max_length)
-        if pos > max_length * 0.5:  # Chỉ cắt nếu không quá sớm
+        if pos > max_length * 0.5:  # Only cut if not too early
             cut_pos = pos + 1
             break
     
-    # Nếu không có dấu câu, cắt tại space
+    # If no punctuation found, cut at space
     if cut_pos == max_length:
         pos = text.rfind(' ', 0, max_length)
         if pos > max_length * 0.5:
@@ -181,7 +181,7 @@ def smart_truncate(text: str, max_length: int = 60) -> str:
     
     result = text[:cut_pos].strip()
     
-    # Thêm "..." nếu bị cắt
+    # Append '...' if truncated
     if len(text) > cut_pos:
         result += "..."
     

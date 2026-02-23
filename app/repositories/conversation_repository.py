@@ -155,8 +155,8 @@ def delete_conversation(conversation_id: str, user_id: str, db: Session) -> bool
 
 def create_new_conversation(user_id: str, db: Session) -> str:
     """
-    Tạo conversation mới với title = null ban đầu.
-    Title sẽ được update sau khi generate.
+    Create a new conversation with title = null initially.
+    Title will be updated after generation.
     
     Args:
         user_id: UUID of the user
@@ -187,7 +187,7 @@ def create_new_conversation(user_id: str, db: Session) -> str:
 
 def update_conversation_title(conversation_id: str, title: str, db: Session) -> bool:
     """
-    Update title của conversation.
+    Update conversation title.
     
     Args:
         conversation_id: UUID of the conversation

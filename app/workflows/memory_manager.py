@@ -13,11 +13,11 @@ logger = get_logger(__name__)
 
 async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> None:
     """
-    Xử lý memory truncation và summary.
+    Handle memory truncation and summarization.
     
     Args:
         ctx: Workflow context
-        memory: ChatMemoryBuffer cần xử lý
+        memory: ChatMemoryBuffer to process
     """
     # Get conversation_id and db from context
     conversation_id = await ctx.store.get("conversation_id")
@@ -26,7 +26,7 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
     all_messages = memory.get_all()
     truncated_messages_list = memory.get()
     
-    # Kiểm tra truncate bằng hash của message đầu tiên
+    # Detect truncation by comparing hash of first message
     is_truncated = False
     is_empty_truncated = False
     

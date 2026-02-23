@@ -8,7 +8,7 @@ from app.repositories.chat_repository import save_message
 
 def find_fact_by_key(facts: List[UserFact], key: str) -> Optional[UserFact]:
     """
-    Tìm fact theo key (không phân biệt hoa thường).
+    Find fact by key (case-insensitive).
     
     Args:
         facts: List of UserFact objects

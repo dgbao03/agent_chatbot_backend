@@ -19,31 +19,31 @@ def split_messages_for_summary(
     is_empty_truncated: bool = False
 ) -> Tuple[List[ChatMessage], List[ChatMessage]]:
     """
-    Chia messages thành 80% (để summary) và 20% (giữ lại).
-    Đảm bảo:
-    - 80% luôn là cặp user-assistant (từ đầu)
-    - 20% luôn bắt đầu với user message (từ cuối)
-    
-    Nếu is_empty_truncated = True: summary toàn bộ messages, không giữ lại gì.
-    
+    Split messages into 80% (for summary) and 20% (to keep).
+    Ensures:
+    - 80% is always user-assistant pairs (from the start)
+    - 20% always starts with a user message (from the end)
+
+    If is_empty_truncated = True: summarize all messages, keep nothing.
+
     Args:
         messages: List of ChatMessage objects from LlamaIndex memory
-        is_empty_truncated: Flag cho biết truncated_messages_list rỗng
-        
+        is_empty_truncated: Flag indicating truncated_messages_list is empty
+
     Returns:
         Tuple of (messages_to_summarize, messages_to_keep) - both are List[ChatMessage]
     """
     if not messages:
         return [], []
     
-    # Nếu truncated_messages_list rỗng, summary toàn bộ messages
+    # If truncated_messages_list is empty, summarize all messages
     if is_empty_truncated:
         return messages, []
     
     total_count = len(messages)
-    keep_count = max(1, int(total_count * 0.2))  # 20%, tối thiểu 1 message
+    keep_count = max(1, int(total_count * 0.2))  # 20%, minimum 1 message
     
-    # Tìm user message cuối cùng trong toàn bộ messages
+    # Find the last user message in all messages
     last_user_idx = -1
     for i in range(total_count - 1, -1, -1):
         if messages[i].role.value == "user":
@@ -51,16 +51,16 @@ def split_messages_for_summary(
             break
     
     if last_user_idx == -1:
-        # Nếu không có user message nào, không giữ lại gì
+        # If no user message found, keep nothing
         return messages, []
     
-    # Tính số lượng messages muốn giữ (20%)
-    target_keep_count = max(2, int(total_count * 0.2))  # Tối thiểu 2 (1 cặp user-assistant)
+    # Calculate number of messages to keep (20%)
+    target_keep_count = max(2, int(total_count * 0.2))  # Minimum 2 (1 user-assistant pair)
     
-    # Bắt đầu từ user message cuối cùng, lấy các cặp user-assistant
+    # Start from the last user message, collect user-assistant pairs
     keep_start_idx = last_user_idx
     
-    # Đếm số cặp user-assistant từ keep_start_idx đến cuối
+    # Count user-assistant pairs from keep_start_idx to end
     valid_pairs = 0
     i = keep_start_idx
     while i < total_count - 1:
@@ -73,9 +73,9 @@ def split_messages_for_summary(
         else:
             break
     
-    # Nếu số cặp hợp lệ ít hơn target, tìm thêm cặp từ trước đó
+    # If valid pairs fewer than target, find more pairs from earlier
     if valid_pairs * 2 < target_keep_count:
-        # Tìm ngược lại từ keep_start_idx - 1
+        # Search backwards from keep_start_idx - 1
         for i in range(keep_start_idx - 1, -1, -1):
             if (
                 i + 1 < total_count
@@ -87,9 +87,9 @@ def split_messages_for_summary(
                 if valid_pairs * 2 >= target_keep_count:
                     break
     
-    # Đảm bảo có ít nhất 1 cặp user-assistant
+    # Ensure at least 1 user-assistant pair
     if valid_pairs == 0:
-        # Nếu không có cặp nào, chỉ giữ user message cuối cùng (không hợp lệ nhưng tốt hơn không có gì)
+        # If no pairs found, keep only the last user message (not ideal but better than nothing)
         keep_start_idx = last_user_idx
         keep_count = 1
     else:
@@ -103,8 +103,8 @@ def split_messages_for_summary(
 
 async def create_summary(conversation_id: str, messages: List[ChatMessage], db) -> str:
     """
-    Tạo summary từ messages, kết hợp với summary cũ nếu có.
-    
+    Create summary from messages, combining with old summary if exists.
+
     Args:
         conversation_id: UUID of the conversation
         messages: List of ChatMessage objects from LlamaIndex memory to summarize
@@ -114,14 +114,14 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         str: Summary text
     """
     try:
-        # Load summary cũ
+        # Load old summary
         old_summary_data = load_summary(conversation_id, db)
         old_summary = old_summary_data.get("summary_content", "")
         
-        # Format messages mới
+        # Format new messages
         formatted_messages = format_messages_for_summary(messages)
         
-        # Tạo prompt cho LLM
+        # Build prompt for LLM
         if not old_summary:
             system_prompt = SUMMARY_INITIAL_PROMPT
             user_prompt = f"Please summarize the following conversation:\n\n{formatted_messages}"
@@ -133,7 +133,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
                 f"Please create a new summary combining both sections above."
             )
         
-        # Gọi LLM để tạo summary
+        # Call LLM to create summary
         llm_messages = [
             ChatMessage(role=MessageRole.SYSTEM, content=system_prompt),
             ChatMessage(role=MessageRole.USER, content=user_prompt)
@@ -141,7 +141,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         
         response = await llm.achat(llm_messages)
         
-        # Lấy content từ response
+        # Extract content from response
         if hasattr(response, 'message') and hasattr(response.message, 'content'):
             summary_text = str(response.message.content)
         elif hasattr(response, 'content'):
@@ -149,14 +149,14 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         else:
             summary_text = str(response)
         
-        # Lưu summary mới (upsert overwrites)
+        # Save new summary (upsert overwrites)
         save_summary(conversation_id, summary_text, db)
         
         return summary_text
         
     except Exception:
         logger.exception("create_summary_failed")
-        # Fallback: trả về summary đơn giản
+        # Fallback: return simple summary
         user_count = sum(1 for msg in messages if msg.role.value == "user")
         assistant_count = sum(1 for msg in messages if msg.role.value == "assistant")
         return (
