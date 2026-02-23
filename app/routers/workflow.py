@@ -3,6 +3,7 @@ Workflow Router - Manual API endpoint for Chat Workflow.
 Replaces WorkflowServer with direct FastAPI integration.
 """
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -48,7 +49,10 @@ async def run_chat_workflow(
     Returns format expected by frontend: { status, result } or { error }.
     """
     if not body.start_event.user_input or not body.start_event.user_input.strip():
-        return {"status": "error", "error": "user_input is required and cannot be empty"}
+        return JSONResponse(
+            status_code=422,
+            content={"status": "error", "error": "user_input is required and cannot be empty"},
+        )
 
     # Set context for workflow (replaces AuthMiddleware)
     set_current_user_id(user_id)
@@ -73,10 +77,16 @@ async def run_chat_workflow(
         }
     except AppException as e:
         logger.warning("workflow_error", error_type=type(e).__name__, detail=e.message)
-        return {"status": "error", "error": e.message}
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"status": "error", "error": e.message},
+        )
     except Exception as e:
         logger.error("workflow_unexpected_error", error_type=type(e).__name__, detail=str(e))
-        return {"status": "error", "error": ERROR_GENERAL}
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "error": ERROR_GENERAL},
+        )
     finally:
         clear_current_user_id()
         clear_current_db_session()

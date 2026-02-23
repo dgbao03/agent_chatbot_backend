@@ -20,9 +20,11 @@ class AppException(Exception):
     Base exception for all application-level errors.
     
     The `message` attribute is safe to return to the client.
+    The `status_code` attribute maps to the HTTP status code for the response.
     Unexpected/internal errors should remain as plain Exception
     and be caught separately at the router layer.
     """
+    status_code: int = 400
 
     def __init__(self, message: str = "An unexpected error occurred"):
         self.message = message
@@ -31,6 +33,7 @@ class AppException(Exception):
 
 class NotFoundError(AppException):
     """Resource not found (conversation, presentation, user, etc.)."""
+    status_code = 404
 
     def __init__(self, resource: str, resource_id: str = ""):
         detail = f"{resource} not found" + (f": {resource_id}" if resource_id else "")
@@ -39,6 +42,7 @@ class NotFoundError(AppException):
 
 class AccessDeniedError(AppException):
     """User does not have permission to access the requested resource."""
+    status_code = 403
 
     def __init__(self, message: str = "Access denied"):
         super().__init__(message)
@@ -46,6 +50,7 @@ class AccessDeniedError(AppException):
 
 class ValidationError(AppException):
     """Input data failed validation (bad format, missing fields, etc.)."""
+    status_code = 422
 
     def __init__(self, message: str = "Validation failed"):
         super().__init__(message)
@@ -53,6 +58,7 @@ class ValidationError(AppException):
 
 class LLMError(AppException):
     """LLM-related failure (timeout, output parsing, quota exceeded, etc.)."""
+    status_code = 502
 
     def __init__(self, message: str = "LLM processing failed"):
         super().__init__(message)
@@ -60,6 +66,7 @@ class LLMError(AppException):
 
 class DatabaseError(AppException):
     """Database operation failure (connection, query, transaction, etc.)."""
+    status_code = 500
 
     def __init__(self, message: str = "Database operation failed"):
         super().__init__(message)
@@ -67,6 +74,7 @@ class DatabaseError(AppException):
 
 class ExternalServiceError(AppException):
     """Failure from an external service (third-party API, SMTP, etc.)."""
+    status_code = 502
 
     def __init__(self, service: str, message: str = ""):
         detail = f"{service} error" + (f": {message}" if message else "")
