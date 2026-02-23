@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models import UserFact
 from app.config.types import UserFact as UserFactDict
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_user_facts(user_id: str, db: Session) -> List[UserFactDict]:
@@ -45,6 +48,7 @@ def load_user_facts(user_id: str, db: Session) -> List[UserFactDict]:
         return result
         
     except Exception:
+        logger.exception("load_user_facts_failed")
         return []
 
 
@@ -103,6 +107,7 @@ def upsert_user_fact(fact: UserFactDict, db: Session) -> Optional[UserFactDict]:
             }
         
     except Exception:
+        logger.exception("upsert_user_fact_failed")
         db.rollback()
         return None
 
@@ -130,6 +135,7 @@ def delete_user_fact(user_id: str, key: str, db: Session) -> bool:
         return True
         
     except Exception:
+        logger.exception("delete_user_fact_failed")
         db.rollback()
         return False
 

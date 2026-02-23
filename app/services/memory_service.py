@@ -7,6 +7,9 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
 from app.config.prompts import SUMMARY_INITIAL_PROMPT, SUMMARY_UPDATE_PROMPT
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
 
@@ -154,6 +157,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db) 
         return summary_text
         
     except Exception:
+        logger.exception("create_summary_failed")
         # Fallback: trả về summary đơn giản
         user_count = sum(1 for msg in messages if msg.role.value == "user")
         assistant_count = sum(1 for msg in messages if msg.role.value == "assistant")

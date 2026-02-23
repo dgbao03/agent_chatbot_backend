@@ -5,6 +5,9 @@ from typing import List
 from llama_index.core.llms import ChatMessage
 from app.repositories.user_facts_repository import load_user_facts
 from app.auth.context import get_current_db_session
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def format_user_facts_for_prompt(user_id: str) -> str:
@@ -36,6 +39,7 @@ def format_user_facts_for_prompt(user_id: str) -> str:
         return "\n".join(formatted_lines)
         
     except Exception:
+        logger.exception("format_user_facts_failed")
         return ""
 
 

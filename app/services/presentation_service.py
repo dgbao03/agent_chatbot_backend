@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.config.pydantic_outputs import SlideIntentOutput
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
+from app.exceptions import LLMError
 from app.logging import get_logger
 from app.repositories.presentation_repository import (
     list_presentations,
@@ -116,5 +117,5 @@ IMPORTANT: Carefully match user request with presentation topics!
         return (result.action, result.target_slide_id, result.target_page_number)
         
     except Exception as e:
-        raise ValueError(f"Intent detection failed: {e}") from e
+        raise LLMError(f"Intent detection failed: {e}") from e
 

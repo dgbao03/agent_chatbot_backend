@@ -18,6 +18,7 @@ from app.config.prompts import (
     ROUTER_ANSWER_PROMPT,
     SLIDE_GENERATION_PROMPT,
     TOOL_BEST_PRACTICES,
+    ERROR_GENERAL,
 )
 from app.repositories.chat_repository import load_chat_history, save_message
 from app.repositories.summary_repository import load_summary
@@ -32,6 +33,7 @@ from app.utils.formatters import format_user_facts_for_prompt
 from app.utils.title_generator import generate_conversation_title
 from app.utils.helpers import save_error_response
 from app.tools import registry
+from app.exceptions import AccessDeniedError, ValidationError, DatabaseError
 from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
@@ -58,7 +60,7 @@ class GenerateSlideEvent(Event):
 
 error_output = RouterOutput(
     intent="GENERAL",
-    answer="Sorry, I encountered an error processing your request. Please try again.",
+    answer=ERROR_GENERAL,
 )
 
 # Get all enabled tools from registry
@@ -131,7 +133,7 @@ class ChatWorkflow(Workflow):
                 user_id = get_current_user_id()
                 
                 if not user_id or user_id == "None":
-                    raise ValueError("user_id is missing or invalid. Authentication failed.")
+                    raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
                 
                 # Variables to track if new conversation was created
                 new_conv_id: Optional[str] = None
@@ -236,7 +238,7 @@ class ChatWorkflow(Workflow):
         
         # Validate required params
         if not user_id or user_id == "None":
-            raise ValueError("user_id is missing or invalid. Authentication failed.")
+            raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
         
         # Variables to track new conversation (if created)
         new_conv_id: Optional[str] = None
@@ -696,12 +698,12 @@ class ChatWorkflow(Workflow):
                     db=db
                 )
                 if not saved_presentation:
-                    raise ValueError("Failed to create presentation")
+                    raise DatabaseError("Failed to create presentation")
                 presentation_id = saved_presentation["id"]
                 logger.info("presentation_created", presentation_id=presentation_id, topic=slide_output.topic, total_pages=slide_output.total_pages)
             else:
                 if not target_presentation_id:
-                    raise ValueError("target_presentation_id required for EDIT action")
+                    raise ValidationError("target_presentation_id required for EDIT action")
                 presentation: Presentation = {
                     "id": target_presentation_id,
                     "conversation_id": conversation_id,
@@ -716,11 +718,11 @@ class ChatWorkflow(Workflow):
                     db=db
                 )
                 if not updated_presentation:
-                    raise ValueError("Failed to update presentation")
+                    raise DatabaseError("Failed to update presentation")
                 presentation_id = updated_presentation["id"]
                 set_active_presentation(conversation_id, presentation_id, db)
                 logger.info("presentation_updated", presentation_id=presentation_id, topic=slide_output.topic, total_pages=slide_output.total_pages)
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.error(
                 "slide_generation_failed",
                 phase="save_presentation",

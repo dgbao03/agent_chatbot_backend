@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models import Conversation
 from app.config.types import Conversation as ConversationDict
+from app.exceptions import DatabaseError
 from app.auth.context import get_current_user_id
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
@@ -40,6 +44,7 @@ def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
             for c in conversations
         ]
     except Exception:
+        logger.exception("list_conversations_failed")
         return []
 
 
@@ -73,6 +78,7 @@ def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> O
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }
     except Exception:
+        logger.exception("get_conversation_by_id_failed")
         return None
 
 
@@ -113,6 +119,7 @@ def update_conversation(
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }
     except Exception:
+        logger.exception("update_conversation_failed")
         db.rollback()
         return None
 
@@ -141,6 +148,7 @@ def delete_conversation(conversation_id: str, user_id: str, db: Session) -> bool
         db.commit()
         return True
     except Exception:
+        logger.exception("delete_conversation_failed")
         db.rollback()
         return False
 
@@ -158,13 +166,12 @@ def create_new_conversation(user_id: str, db: Session) -> str:
         Conversation ID (UUID string)
         
     Raises:
-        ValueError: If conversation creation fails
+        DatabaseError: If conversation creation fails
     """
     try:
-        # Create new conversation
         conversation = Conversation(
             user_id=user_id,
-            title=None  # Sẽ update sau
+            title=None
         )
         
         db.add(conversation)
@@ -175,7 +182,7 @@ def create_new_conversation(user_id: str, db: Session) -> str:
             
     except Exception as e:
         db.rollback()
-        raise ValueError(f"Failed to create conversation: {e}")
+        raise DatabaseError(f"Failed to create conversation: {e}") from e
 
 
 def update_conversation_title(conversation_id: str, title: str, db: Session) -> bool:
@@ -210,6 +217,7 @@ def update_conversation_title(conversation_id: str, title: str, db: Session) -> 
         return True
             
     except Exception:
+        logger.exception("update_conversation_title_failed")
         db.rollback()
         return False
 

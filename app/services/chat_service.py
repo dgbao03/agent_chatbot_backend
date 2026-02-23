@@ -3,12 +3,12 @@ Chat service - Business logic for chat orchestration.
 """
 from sqlalchemy.orm import Session
 from app.models import Conversation
+from app.exceptions import NotFoundError, AccessDeniedError
 
 
 def validate_conversation_access(user_id: str, conversation_id: str, db: Session) -> None:
     """
     Validate that user has access to the conversation.
-    Raises ValueError if access is denied.
     
     Args:
         user_id: UUID of the user
@@ -16,20 +16,20 @@ def validate_conversation_access(user_id: str, conversation_id: str, db: Session
         db: Database session
         
     Raises:
-        ValueError: If conversation not found or user doesn't have access
+        NotFoundError: If conversation not found or user doesn't own it
+        AccessDeniedError: If ownership check fails due to unexpected error
     """
     try:
-        # Query conversation with user_id filter
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,
             Conversation.user_id == user_id
         ).first()
         
         if not conversation:
-            raise ValueError(f"Conversation {conversation_id} not found or access denied.")
+            raise NotFoundError("Conversation", conversation_id)
             
-    except ValueError:
+    except NotFoundError:
         raise
-    except Exception:
-        raise ValueError("Access denied: Unable to verify conversation ownership.")
+    except Exception as e:
+        raise AccessDeniedError("Unable to verify conversation ownership") from e
 

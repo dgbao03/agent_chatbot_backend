@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from app.models import Message, Conversation
 from app.config.types import Message as MessageDict
 from app.auth.context import get_current_user_id
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
@@ -62,6 +65,7 @@ def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
         return result
         
     except Exception:
+        logger.exception("load_chat_history_failed")
         return []
 
 
@@ -114,6 +118,7 @@ def load_all_messages_for_conversation(
             })
         return result
     except Exception:
+        logger.exception("load_all_messages_failed")
         return []
 
 
@@ -156,6 +161,7 @@ def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
         }
         
     except Exception:
+        logger.exception("save_message_failed")
         db.rollback()
         return None
 

@@ -8,6 +8,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.models.password_reset_token import PasswordResetToken
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_token(user_id: Union[str, UUID], expires_minutes: int = 15, db: Session = None) -> Optional[str]:
@@ -36,6 +39,7 @@ def create_token(user_id: Union[str, UUID], expires_minutes: int = 15, db: Sessi
         db.commit()
         return token_str
     except Exception:
+        logger.exception("create_reset_token_failed")
         db.rollback()
         return None
 
@@ -60,6 +64,7 @@ def get_valid_token(token: str, db: Session) -> Optional[PasswordResetToken]:
         ).first()
         return record
     except Exception:
+        logger.exception("get_valid_reset_token_failed")
         return None
 
 
@@ -84,6 +89,7 @@ def cleanup_expired_reset_tokens(db: Session) -> int:
         db.commit()
         return deleted
     except Exception:
+        logger.exception("cleanup_expired_reset_tokens_failed")
         db.rollback()
         return 0
 
@@ -107,5 +113,6 @@ def mark_token_used(token: str, db: Session) -> bool:
         db.commit()
         return True
     except Exception:
+        logger.exception("mark_reset_token_used_failed")
         db.rollback()
         return False

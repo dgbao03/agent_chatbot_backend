@@ -6,8 +6,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 from dotenv import load_dotenv
+from app.logging import get_logger
 
 load_dotenv()
+
+logger = get_logger(__name__)
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -72,4 +75,5 @@ async def send_password_reset_email(to_email: str, reset_link: str) -> bool:
         )
         return True
     except Exception:
+        logger.exception("send_password_reset_email_failed")
         return False

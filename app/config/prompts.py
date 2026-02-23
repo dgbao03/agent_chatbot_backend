@@ -182,3 +182,9 @@ Yêu cầu:
 - Giữ lại thông tin quan trọng từ tóm tắt cũ
 - Bổ sung thông tin mới từ cuộc hội thoại
 - Tạo tóm tắt ngắn gọn, không lặp lại"""
+
+
+# ============================================================
+# ERROR MESSAGES (User-facing)
+# ============================================================
+ERROR_GENERAL = "Sorry, I encountered an error processing your request. Please try again."

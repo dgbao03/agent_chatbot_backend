@@ -7,8 +7,11 @@ from datetime import datetime, timedelta
 import os
 import uuid
 from dotenv import load_dotenv
+from app.logging import get_logger
 
 load_dotenv()
+
+logger = get_logger(__name__)
 
 # JWT settings
 ACCESS_TOKEN_SECRET_KEY = os.getenv("ACCESS_TOKEN_SECRET_KEY")
@@ -51,6 +54,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
             hashed_password.encode('utf-8')
         )
     except Exception:
+        logger.exception("verify_password_failed")
         return False
 
 

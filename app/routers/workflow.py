@@ -14,9 +14,13 @@ from app.auth.context import (
     set_current_db_session,
     clear_current_db_session,
 )
+from app.exceptions import AppException
+from app.config.prompts import ERROR_GENERAL
 from app.database.session import get_db
 from app.workflows.workflow import ChatWorkflow
+from app.logging import get_logger
 
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -67,11 +71,12 @@ async def run_chat_workflow(
                 }
             },
         }
-    except ValueError as e:
-        # Auth/validation errors
-        return {"status": "error", "error": str(e)}
+    except AppException as e:
+        logger.warning("workflow_error", error_type=type(e).__name__, detail=e.message)
+        return {"status": "error", "error": e.message}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.error("workflow_unexpected_error", error_type=type(e).__name__, detail=str(e))
+        return {"status": "error", "error": ERROR_GENERAL}
     finally:
         clear_current_user_id()
         clear_current_db_session()

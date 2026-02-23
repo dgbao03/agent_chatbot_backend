@@ -8,6 +8,9 @@ from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
 from app.repositories.user_repository import get_user_by_email, create_user
 from app.models import User
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -95,6 +98,7 @@ async def exchange_google_code_for_token(code: str) -> Optional[Dict]:
             else:
                 return None
     except Exception:
+        logger.exception("exchange_google_code_failed")
         return None
 
 
@@ -124,6 +128,7 @@ async def get_google_user_info(access_token: str) -> Optional[Dict]:
             else:
                 return None
     except Exception:
+        logger.exception("get_google_user_info_failed")
         return None
 
 
@@ -188,5 +193,6 @@ def get_or_create_oauth_user(
             return (new_user, True)
             
     except Exception:
+        logger.exception("get_or_create_oauth_user_failed")
         db.rollback()
         return (None, False)

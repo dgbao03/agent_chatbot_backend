@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from app.models.token_blacklist import TokenBlacklist
 from uuid import UUID
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def add_token_to_blacklist(
@@ -40,6 +43,7 @@ def add_token_to_blacklist(
         return True
         
     except Exception as e:
+        logger.exception("add_token_to_blacklist_failed")
         db.rollback()
         return False
 
@@ -63,6 +67,7 @@ def is_token_blacklisted(token_jti: str, db: Session) -> bool:
         return exists is not None
         
     except Exception:
+        logger.exception("is_token_blacklisted_failed")
         return False
 
 
@@ -87,5 +92,6 @@ def cleanup_expired_tokens(db: Session) -> int:
         return deleted
         
     except Exception:
+        logger.exception("cleanup_expired_tokens_failed")
         db.rollback()
         return 0

@@ -18,6 +18,9 @@ from app.config.types import (
     VersionContent,
 )
 from app.auth.context import get_current_user_id
+from app.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_presentation(
@@ -91,6 +94,7 @@ def create_presentation(
         }
         
     except Exception:
+        logger.exception("create_presentation_failed")
         db.rollback()
         return None
 
@@ -147,6 +151,7 @@ def load_presentation(presentation_id: str, db: Session) -> Optional[Presentatio
         }
         
     except Exception:
+        logger.exception("load_presentation_failed")
         return None
 
 
@@ -257,6 +262,7 @@ def update_presentation(
         }
         
     except Exception:
+        logger.exception("update_presentation_failed")
         db.rollback()
         return None
 
@@ -322,6 +328,7 @@ def get_presentation_versions(
         return versions
         
     except Exception as e:
+        logger.exception("get_presentation_versions_failed")
         return []
 
 
@@ -390,6 +397,7 @@ def get_version_content(
         return {"pages": pages, "total_pages": len(pages)}
         
     except Exception:
+        logger.exception("get_version_content_failed")
         return None
 
 
@@ -423,6 +431,7 @@ def get_active_presentation(
         return str(conversation.active_presentation_id)
         
     except Exception:
+        logger.exception("get_active_presentation_failed")
         return None
 
 
@@ -458,6 +467,7 @@ def set_active_presentation(conversation_id: str, presentation_id: str, db: Sess
         return True
         
     except Exception:
+        logger.exception("set_active_presentation_failed")
         db.rollback()
         return False
 
@@ -512,5 +522,6 @@ def list_presentations(conversation_id: str, db: Session) -> List[PresentationDi
         return presentations
         
     except Exception:
+        logger.exception("list_presentations_failed")
         return []
 
