@@ -30,6 +30,20 @@ class SummaryDict(TypedDict):
 
 
 # ============================================
+# CONVERSATION TYPES
+# ============================================
+class Conversation(TypedDict, total=False):
+    """Conversation entity - maps to conversations table."""
+    id: Optional[str]
+    user_id: str
+    title: Optional[str]
+    active_presentation_id: Optional[str]
+    next_presentation_id_counter: int
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+
+# ============================================
 # USER FACT TYPES
 # ============================================
 class UserFact(TypedDict, total=False):

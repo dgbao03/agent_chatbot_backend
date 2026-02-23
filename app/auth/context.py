@@ -3,12 +3,13 @@ Authentication context - User ID and DB session context management.
 """
 from contextvars import ContextVar
 from typing import Optional
+from sqlalchemy.orm import Session
 
 # Context variable for user_id (replaces RLS in self-hosted DB)
 _current_user_id: ContextVar[Optional[str]] = ContextVar("current_user_id", default=None)
 
 # Context variable for database session
-_current_db_session: ContextVar[Optional[any]] = ContextVar("current_db_session", default=None)
+_current_db_session: ContextVar[Optional[Session]] = ContextVar("current_db_session", default=None)
 
 
 def set_current_user_id(user_id: str) -> None:
@@ -47,7 +48,7 @@ def clear_current_user_id() -> None:
     _current_user_id.set(None)
 
 
-def set_current_db_session(db) -> None:
+def set_current_db_session(db: Session) -> None:
     """
     Set current database session in context.
     Called by auth middleware after creating db session.
@@ -58,13 +59,13 @@ def set_current_db_session(db) -> None:
     _current_db_session.set(db)
 
 
-def get_current_db_session():
+def get_current_db_session() -> Session:
     """
     Get current database session from context.
     Used by workflow to access database.
     
     Returns:
-        db session or None if not set
+        SQLAlchemy Session
         
     Raises:
         ValueError: If no db session in context

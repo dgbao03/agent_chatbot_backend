@@ -5,10 +5,11 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models import Conversation
+from app.config.types import Conversation as ConversationDict
 from app.auth.context import get_current_user_id
 
 
-def list_conversations(user_id: str, db: Session) -> List[Dict[str, Any]]:
+def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
     """
     List all conversations for a user, ordered by updated_at desc.
 
@@ -42,7 +43,7 @@ def list_conversations(user_id: str, db: Session) -> List[Dict[str, Any]]:
         return []
 
 
-def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
+def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> Optional[ConversationDict]:
     """
     Get conversation by ID if it belongs to the user.
 
@@ -77,7 +78,7 @@ def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> O
 
 def update_conversation(
     conversation_id: str, user_id: str, data: Dict[str, Any], db: Session
-) -> Optional[Dict[str, Any]]:
+) -> Optional[ConversationDict]:
     """
     Update conversation (e.g. title) if it belongs to the user.
 

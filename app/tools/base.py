@@ -25,6 +25,17 @@ class BaseTool(ABC):
     category: str
     enabled: bool = True
     
+    _REQUIRED_ATTRS = ("name", "summary", "description", "category")
+    
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if not getattr(cls, "__abstractmethods__", None):
+            for attr in cls._REQUIRED_ATTRS:
+                if not hasattr(cls, attr):
+                    raise TypeError(
+                        f"{cls.__name__} must define class attribute '{attr}'"
+                    )
+    
     @abstractmethod
     def execute(self, **kwargs) -> Any:
         """
