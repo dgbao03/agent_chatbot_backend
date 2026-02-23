@@ -1,6 +1,7 @@
 """
 Presentations Router - Presentation read endpoints
 """
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -22,12 +23,12 @@ router = APIRouter(prefix="/presentations", tags=["presentations"])
 
 @router.get("/{presentation_id}/versions", response_model=List[VersionInfoResponse])
 async def list_presentation_versions(
-    presentation_id: str,
+    presentation_id: UUID,
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get all versions of a presentation"""
-    versions = get_presentation_versions(presentation_id, db, user_id=user_id)
+    versions = get_presentation_versions(str(presentation_id), db, user_id=user_id)
     if not versions:
         raise HTTPException(status_code=404, detail="Presentation not found")
     # Map created_at to timestamp for FE compatibility
@@ -46,13 +47,13 @@ async def list_presentation_versions(
 
 @router.get("/{presentation_id}/versions/{version}", response_model=VersionContentResponse)
 async def get_version_content_endpoint(
-    presentation_id: str,
+    presentation_id: UUID,
     version: int,
     user_id: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Get pages content of a specific version"""
-    data = get_version_content(presentation_id, version, db, user_id=user_id)
+    data = get_version_content(str(presentation_id), version, db, user_id=user_id)
     if not data:
         raise HTTPException(status_code=404, detail="Version not found")
     pages = [

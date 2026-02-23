@@ -10,6 +10,7 @@ import uvicorn
 
 from app.logging import setup_logging, get_logger
 from app.logging.middleware import RequestLoggingMiddleware
+from app.config.settings import CORS_ORIGINS
 from app.routers import auth, conversations, presentations, workflow
 from app.tasks.cleanup import start_scheduler, stop_scheduler
 
@@ -37,10 +38,7 @@ app = FastAPI(
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174"
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

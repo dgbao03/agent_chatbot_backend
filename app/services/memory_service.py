@@ -2,16 +2,16 @@
 Memory service - Business logic for memory management.
 """
 from typing import List, Tuple
-from llama_index.llms.openai import OpenAI
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
 from app.config.prompts import SUMMARY_INITIAL_PROMPT, SUMMARY_UPDATE_PROMPT
+from app.config.llm import get_summary_llm
 from app.logging import get_logger
 
 logger = get_logger(__name__)
 
-llm = OpenAI(model="gpt-4o-mini", request_timeout=120.0)  # 2 minutes timeout
+llm = get_summary_llm()
 
 
 def split_messages_for_summary(

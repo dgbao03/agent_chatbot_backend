@@ -4,7 +4,6 @@ Chat workflow - Main workflow for routing and answering user queries.
 import json
 import time
 from typing import Union, Optional
-from llama_index.llms.openai import OpenAI
 from llama_index.core.workflow import Workflow, Context, step
 from llama_index.core.workflow.events import StartEvent, StopEvent
 from llama_index.core.llms import ChatMessage, MessageRole
@@ -38,12 +37,14 @@ from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.chat_service import validate_conversation_access
 from app.services.presentation_service import detect_presentation_intent
 from app.workflows.memory_manager import process_memory_truncation
+from app.config.llm import get_llm, get_security_llm
+from app.config.settings import LLM_MODEL, LLM_SECURITY_MODEL
 from app.logging import get_logger
 
 logger = get_logger(__name__)
 
-llm = OpenAI(model="gpt-4o-mini", request_timeout=300.0)  # 5 minutes timeout cho generate multi-page slides
-llm_security = OpenAI(model="gpt-4o-mini", temperature=0, request_timeout=30.0)  # LLM for security check
+llm = get_llm()
+llm_security = get_security_llm()
 
 class StreamResponseEvent(Event):
     content: str
@@ -117,7 +118,7 @@ class ChatWorkflow(Workflow):
 
             logger.info(
                 "security_check_llm_call",
-                model="gpt-4o-mini",
+                model=LLM_SECURITY_MODEL,
                 duration_ms=llm_duration,
                 **token_info,
             )
@@ -368,7 +369,7 @@ class ChatWorkflow(Workflow):
             except Exception as e:
                 logger.error(
                     "llm_call_failed",
-                    model="gpt-4o-mini",
+                    model=LLM_MODEL,
                     llm_call_number=llm_call_count,
                     error_type=type(e).__name__,
                     error_message=str(e),
@@ -393,7 +394,7 @@ class ChatWorkflow(Workflow):
 
             logger.info(
                 "llm_call_completed",
-                model="gpt-4o-mini",
+                model=LLM_MODEL,
                 llm_call_number=llm_call_count,
                 duration_ms=llm_duration,
                 **token_info,
@@ -665,7 +666,7 @@ class ChatWorkflow(Workflow):
 
         logger.info(
             "slide_llm_call_completed",
-            model="gpt-4o-mini",
+            model=LLM_MODEL,
             duration_ms=llm_duration,
             total_pages=slide_output.total_pages,
             **token_info,

@@ -48,6 +48,7 @@ from app.repositories.password_reset_token_repository import (
 )
 from app.services.email_service import send_password_reset_email
 from app.auth.dependencies import get_current_user
+from app.config.settings import COOKIE_SECURE
 from app.logging import get_logger
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -70,7 +71,7 @@ def _set_refresh_token_cookie(response, refresh_token: str) -> None:
         key=REFRESH_TOKEN_COOKIE_KEY,
         value=refresh_token,
         httponly=True,
-        secure=False,  # True when using HTTPS in production
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=REFRESH_TOKEN_MAX_AGE,
         path="/auth",

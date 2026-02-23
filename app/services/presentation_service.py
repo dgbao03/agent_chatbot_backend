@@ -6,6 +6,7 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from app.config.pydantic_outputs import SlideIntentOutput
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
 from app.exceptions import LLMError
+from app.config.settings import LLM_MODEL
 from app.logging import get_logger
 from app.repositories.presentation_repository import (
     list_presentations,
@@ -102,7 +103,7 @@ IMPORTANT: Carefully match user request with presentation topics!
                 "completion_tokens": raw_resp.usage.completion_tokens,
                 "total_tokens": raw_resp.usage.total_tokens,
             }
-        logger.info("intent_detection_llm_call", model="gpt-4o-mini", **token_info)
+        logger.info("intent_detection_llm_call", model=LLM_MODEL, **token_info)
         
         # Validate and fix result
         if result.action in ["EDIT_SPECIFIC", "EDIT_ACTIVE"]:

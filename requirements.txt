@@ -9,7 +9,6 @@ python-dotenv
 llama-index-workflows[server]
 llama-agents-server
 starlette
-uvicorn
 
 # Tools
 tavily-python
@@ -17,9 +16,6 @@ requests
 newspaper4k
 lxml
 lxml_html_clean
-
-# FastAPI
-fastapi
 
 # Backend Development
 fastapi
@@ -31,7 +27,6 @@ bcrypt
 python-multipart
 pydantic-settings
 httpx
-email-validator
 pydantic
 email-validator
 
