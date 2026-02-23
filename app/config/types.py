@@ -38,7 +38,6 @@ class Conversation(TypedDict, total=False):
     user_id: str
     title: Optional[str]
     active_presentation_id: Optional[str]
-    next_presentation_id_counter: int
     created_at: Optional[str]
     updated_at: Optional[str]
 

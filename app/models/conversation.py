@@ -2,7 +2,7 @@
 Conversation Model - SQLAlchemy ORM
 Maps to 'conversations' table
 """
-from sqlalchemy import Column, String, Integer, ForeignKey, text
+from sqlalchemy import Column, String, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.database.session import Base
@@ -20,7 +20,6 @@ class Conversation(Base):
     
     # Data
     title = Column(String, nullable=True)
-    next_presentation_id_counter = Column(Integer, nullable=False, server_default="1")
     
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))

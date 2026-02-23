@@ -34,7 +34,6 @@ CREATE TABLE public.conversations (
     user_id uuid NOT NULL,
     title text,
     active_presentation_id uuid,
-    next_presentation_id_counter integer DEFAULT 1,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );

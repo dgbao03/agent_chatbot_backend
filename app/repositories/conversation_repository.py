@@ -37,7 +37,6 @@ def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
                 "user_id": str(c.user_id),
                 "title": c.title,
                 "active_presentation_id": str(c.active_presentation_id) if c.active_presentation_id else None,
-                "next_presentation_id_counter": c.next_presentation_id_counter,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "updated_at": c.updated_at.isoformat() if c.updated_at else None,
             }
@@ -73,7 +72,6 @@ def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> O
             "user_id": str(conv.user_id),
             "title": conv.title,
             "active_presentation_id": str(conv.active_presentation_id) if conv.active_presentation_id else None,
-            "next_presentation_id_counter": conv.next_presentation_id_counter,
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }
@@ -114,7 +112,6 @@ def update_conversation(
             "user_id": str(conv.user_id),
             "title": conv.title,
             "active_presentation_id": str(conv.active_presentation_id) if conv.active_presentation_id else None,
-            "next_presentation_id_counter": conv.next_presentation_id_counter,
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }

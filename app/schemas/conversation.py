@@ -10,7 +10,6 @@ class ConversationResponse(BaseModel):
     user_id: str
     title: Optional[str] = None
     active_presentation_id: Optional[str] = None
-    next_presentation_id_counter: int = 1
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
