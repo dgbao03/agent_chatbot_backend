@@ -7,19 +7,17 @@ import sys
 import logging
 import logging.handlers
 import structlog
-from dotenv import load_dotenv
 
+from app.config.settings import (
+    LOG_LEVEL,
+    LOG_FORMAT,
+    LOG_OUTPUT,
+    LOG_FILE_PATH,
+    LOG_FILE_MAX_BYTES,
+    LOG_FILE_BACKUP_COUNT,
+)
 from app.logging.context import get_request_id, get_user_id
 from app.logging.sanitizer import sanitize_sensitive_data
-
-load_dotenv()
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_FORMAT = os.getenv("LOG_FORMAT", "console")  # "console" | "json"
-LOG_OUTPUT = os.getenv("LOG_OUTPUT", "stdout")  # "stdout" | "file" | "both"
-LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "logs/app.log")
-LOG_FILE_MAX_BYTES = int(os.getenv("LOG_FILE_MAX_BYTES", 50 * 1024 * 1024))  # 50MB
-LOG_FILE_BACKUP_COUNT = int(os.getenv("LOG_FILE_BACKUP_COUNT", 10))
 
 
 def _inject_context_vars(logger: any, method_name: str, event_dict: dict) -> dict:

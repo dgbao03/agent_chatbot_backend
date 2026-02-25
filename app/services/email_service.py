@@ -1,25 +1,21 @@
 """
 Email Service - Send emails via SMTP (forgot password, etc.)
 """
-import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import aiosmtplib
-from dotenv import load_dotenv
+from app.config.settings import (
+    SMTP_HOST,
+    SMTP_PORT,
+    SMTP_USER,
+    SMTP_PASSWORD,
+    SMTP_FROM_EMAIL,
+    SMTP_FROM_NAME,
+    SMTP_USE_TLS,
+)
 from app.logging import get_logger
 
-load_dotenv()
-
 logger = get_logger(__name__)
-
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL") or SMTP_USER
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Chat Assistant")
-# Port 465 = SSL/TLS from start (use_tls=True). Port 587 = STARTTLS (use_tls=False, auto-upgrade)
-SMTP_USE_TLS = SMTP_PORT == 465
 
 
 def _is_smtp_configured() -> bool:

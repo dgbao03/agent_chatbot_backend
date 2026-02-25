@@ -4,21 +4,17 @@ Auth Utils - JWT and password utilities
 import bcrypt
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-import os
 import uuid
-from dotenv import load_dotenv
+from app.config.settings import (
+    ACCESS_TOKEN_SECRET_KEY,
+    REFRESH_TOKEN_SECRET_KEY,
+    ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+)
 from app.logging import get_logger
 
-load_dotenv()
-
 logger = get_logger(__name__)
-
-# JWT settings
-ACCESS_TOKEN_SECRET_KEY = os.getenv("ACCESS_TOKEN_SECRET_KEY")
-REFRESH_TOKEN_SECRET_KEY = os.getenv("REFRESH_TOKEN_SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 
 def hash_password(password: str) -> str:

@@ -2,20 +2,15 @@
 OAuth Utils - Google OAuth flow implementation
 """
 import secrets
-import os
 from typing import Dict, Optional, Tuple
 from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
 from app.repositories.user_repository import get_user_by_email, create_user
 from app.models import User
+from app.config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from app.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Google OAuth configuration
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:4040/auth/callback")
 
 # Initialize OAuth client
 oauth = OAuth()

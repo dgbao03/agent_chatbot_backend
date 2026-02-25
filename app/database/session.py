@@ -4,13 +4,7 @@ Manages database engine, session, and Base for ORM models
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL")
+from app.config.settings import DATABASE_URL
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in .env file")

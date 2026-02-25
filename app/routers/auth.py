@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from jose import JWTError
-import os
 from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
@@ -48,21 +47,15 @@ from app.repositories.password_reset_token_repository import (
 )
 from app.services.email_service import send_password_reset_email
 from app.auth.dependencies import get_current_user
-from app.config.settings import COOKIE_SECURE
+from app.config.settings import COOKIE_SECURE, FRONTEND_URL, REFRESH_TOKEN_EXPIRE_DAYS
 from app.logging import get_logger
 from datetime import datetime, timezone
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logger = get_logger(__name__)
 
-# Frontend URL for OAuth redirects
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5174")
-
-# Cookie settings for refresh token (httpOnly, 7 days)
+# Cookie settings for refresh token (httpOnly)
 REFRESH_TOKEN_COOKIE_KEY = "refresh_token"
-REFRESH_TOKEN_MAX_AGE = 7 * 24 * 3600  # 7 days in seconds
+REFRESH_TOKEN_MAX_AGE = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
 
 
 def _set_refresh_token_cookie(response, refresh_token: str) -> None:
