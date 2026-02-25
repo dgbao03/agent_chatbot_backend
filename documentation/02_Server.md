@@ -1,0 +1,415 @@
+# Backend Server
+
+## 1. Overview
+
+The backend is a **FastAPI** application. It serves as the central API layer between the frontend client and all backend services — authentication, AI workflow, conversation storage, and presentation management.
+
+The server is structured in layers: every incoming request passes through middleware, is handled by a router, delegated to a service for business logic, then down to a repository for database access.
+
+## 2. Project Structure
+
+```
+agent_chat_backend/
+├── main.py                             # FastAPI app, middleware, routers, lifespan
+├── schema.sql                          # PostgreSQL schema definition
+├── requirements.txt
+├── .env.example
+│
+└── app/
+    │
+    ├── auth/
+    │   ├── context.py                  # ContextVar for user_id and db session (used by Workflow)
+    │   ├── dependencies.py             # FastAPI get_current_user dependency (JWT verification)
+    │   ├── oauth.py                    # Google OAuth flow (authorization URL, code exchange, user info)
+    │   └── utils.py                    # JWT create/verify, password hash/verify
+    │
+    ├── config/
+    │   ├── llm.py                      # LLM factory (get_llm, get_security_llm, get_summary_llm)
+    │   ├── prompts.py                  # All LLM system prompts (security, router, slide, summary)
+    │   ├── pydantic_outputs.py         # Pydantic schemas for LLM structured outputs
+    │   ├── settings.py                 # Centralized env var config (LLM models, CORS, cookie)
+    │   └── types.py                    # TypedDict definitions shared across the app
+    │
+    ├── database/
+    │   └── session.py                  # SQLAlchemy engine, SessionLocal, get_db dependency
+    │
+    ├── exceptions.py                   # Custom exception hierarchy (AppException and subclasses)
+    │
+    ├── logging/
+    │   ├── __init__.py                 # setup_logging(), get_logger()
+    │   ├── config.py                   # structlog + stdlib logging configuration
+    │   ├── context.py                  # request_id and user_id context (ContextVar)
+    │   ├── middleware.py               # RequestLoggingMiddleware (request_id, lifecycle logging)
+    │   └── sanitizer.py               # Strips sensitive fields before logging
+    │
+    ├── models/                         # SQLAlchemy ORM models (one file per table)
+    │   ├── user.py
+    │   ├── conversation.py
+    │   ├── message.py
+    │   ├── conversation_summary.py
+    │   ├── user_fact.py
+    │   ├── presentation.py
+    │   ├── presentation_page.py
+    │   ├── presentation_version.py
+    │   ├── presentation_version_page.py
+    │   ├── token_blacklist.py
+    │   └── password_reset_token.py
+    │
+    ├── repositories/                   # Data access layer — DB queries only, no business logic
+    │   ├── user_repository.py
+    │   ├── conversation_repository.py
+    │   ├── chat_repository.py
+    │   ├── summary_repository.py
+    │   ├── presentation_repository.py
+    │   ├── user_facts_repository.py
+    │   ├── token_blacklist_repository.py
+    │   └── password_reset_token_repository.py
+    │
+    ├── routers/                        # HTTP endpoint handlers
+    │   ├── auth.py                     # /auth — register, login, refresh, OAuth, forgot/reset password
+    │   ├── conversations.py            # /api/conversations — CRUD conversations and messages
+    │   ├── presentations.py            # /api/presentations — presentation versions and page content
+    │   └── workflow.py                 # /workflows/chat/run — triggers ChatWorkflow
+    │
+    ├── schemas/                        # Pydantic request/response models for each router
+    │   ├── auth.py
+    │   ├── conversation.py
+    │   ├── presentation.py
+    │   └── user_fact.py
+    │
+    ├── services/                       # Business logic layer
+    │   ├── chat_service.py             # validate_conversation_access
+    │   ├── email_service.py            # Send password reset email via SMTP
+    │   ├── memory_service.py           # Split messages for summary, create LLM summary
+    │   └── presentation_service.py     # detect_presentation_intent (CREATE_NEW / EDIT)
+    │
+    ├── tasks/
+    │   └── cleanup.py                  # APScheduler — purge expired tokens every 24h
+    │
+    ├── tools/
+    │   ├── base.py                     # BaseTool abstract class
+    │   ├── registry.py                 # ToolRegistry (register, execute, get_llama_tools)
+    │   └── implementations/
+    │       ├── weather.py              # get_weather
+    │       ├── stock.py                # get_stock_price
+    │       ├── user_facts.py           # add_user_fact, update_user_fact, delete_user_fact
+    │       └── url_extractor.py        # extract_url_content
+    │
+    ├── utils/
+    │   ├── formatters.py               # format_user_facts_for_prompt, format_messages_for_summary
+    │   ├── helpers.py                  # find_fact_by_key, save_error_response
+    │   └── title_generator.py          # generate_conversation_title (no LLM, pattern-based)
+    │
+    └── workflows/
+        ├── workflow.py                 # ChatWorkflow — security_check, route_and_answer, generate_slide
+        └── memory_manager.py          # process_memory_truncation, summarization trigger
+```
+
+## 3. Directory Organization Pattern
+
+The project uses a **Layer-based** folder structure — folders are grouped by **technical role** (what the code does), not by feature or domain.
+
+```
+  routers/        ←  all API endpoints (HTTP handlers)
+  services/       ←  all business logic
+  repositories/   ←  all database queries
+  schemas/        ←  all Pydantic request / response models
+  models/         ←  all SQLAlchemy ORM entities
+```
+
+Each folder contains only **one type of responsibility**. A router never writes SQL. A repository never contains business logic. The boundary between layers is strict — data flows in one direction, top to bottom.
+
+**Rules:**
+- Router can only call Service or Repository — never writes SQL directly
+- Service contains business logic — can call multiple Repositories
+- Repository only writes SQL — no business logic allowed
+- Schema only defines the shape of data — no logic
+
+## 4. Architecture Layers
+
+Each incoming HTTP request flows through the following layers:
+
+```
+      HTTP Request
+           │
+           ▼
+┌─────────────────────┐
+│      Middleware     │  ← RequestLoggingMiddleware, CORSMiddleware
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│       Router        │  ← auth / conversations / presentations / workflow
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Auth Dependency    │  ← get_current_user (JWT verification)
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Service (if any)   │  ← Business logic, access control
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│    Repository       │  ← DB queries (SQLAlchemy)
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│     PostgreSQL      │
+└─────────────────────┘
+```
+
+- **Router** — receives the HTTP request, validates request body (Pydantic schema), calls service or repository
+- **Service** — business logic: ownership validation, orchestration across multiple repositories
+- **Repository** — executes SQL queries only; returns plain data dictionaries; no business logic allowed
+
+## 5. Multi-Tenant Design
+
+The system is **multi-tenant by user**: every piece of data in the database is scoped to a specific user. Users can only access their own data — they cannot see or modify another user's conversations, presentations, or personal information.
+
+```
+  User A (JWT: user_id=A)         User B (JWT: user_id=B)
+           │                                │
+           ▼                                ▼
+    get_current_user()              get_current_user()
+           │                                │
+           ▼                                ▼
+    DB query WHERE                   DB query WHERE
+    user_id = A                      user_id = B
+           │                                │
+           ▼                                ▼
+  ┌─────────────────┐            ┌─────────────────┐
+  │  Conversations  │            │  Conversations  │
+  │  Presentations  │            │  Presentations  │
+  │  User Facts     │            │  User Facts     │
+  └─────────────────┘            └─────────────────┘
+     (A's data only)               (B's data only)
+```
+
+### 5.1. Approach
+
+The system does **not** use PostgreSQL Row Level Security (RLS). Instead, data isolation is enforced entirely at the **application layer** — every repository query includes an explicit `user_id` filter in the SQL `WHERE` clause. This is documented in the source code with comments:
+
+```
+# Security: filter by user_id    ← present throughout all repositories
+# replaces RLS                    ← noted in auth/context.py
+```
+
+### 5.2. How `user_id` flows through the system
+
+There are two mechanisms for passing `user_id` depending on the context:
+
+**Mechanism 1 — Direct parameter** (used by Routers):
+
+```
+  JWT token in Authorization header
+            │
+            ▼
+  get_current_user()        ← FastAPI dependency, runs on every protected route
+  verifies JWT, extracts user_id
+            │
+            ▼
+  user_id passed explicitly as parameter
+  to repository functions
+  e.g. list_conversations(user_id, db)
+       get_conversation_by_id(id, user_id, db)
+```
+
+**Mechanism 2 — ContextVar** (used by Workflow):
+
+```
+  JWT token in Authorization header
+            │
+            ▼
+  get_current_user()        ← same JWT verification
+            │
+            ▼
+  set_current_user_id(user_id)
+  stores user_id in Python ContextVar
+  (scoped to the current async task)
+            │
+            ▼
+  Repositories inside workflow call
+  get_current_user_id()
+  to retrieve user_id without explicit parameter passing
+```
+
+The Workflow engine (LlamaIndex) does not support passing `user_id` as a function parameter across steps, so `contextvars.ContextVar` is used to propagate it safely within the scope of a single async request.
+
+### 5.3. Data isolation per table
+
+Every data table that belongs to a user is filtered at the repository layer:
+
+- **conversations** — `WHERE conversations.user_id = :user_id`
+
+- **messages** — ownership verified via `conversations.user_id` first, then messages are queried for that conversation
+
+- **presentations** — JOINed with `conversations`, filtered by `conversations.user_id`
+
+- **presentation_pages / versions** — accessed only through a presentation that has passed the ownership check
+
+- **user_facts** — `WHERE user_facts.user_id = :user_id`
+
+- **conversation_summaries** — accessed only through a conversation that has passed the ownership check
+
+- **token_blacklist** — scoped by `user_id`
+
+- **password_reset_tokens** — scoped by `user_id`
+
+### 5.4. Double ownership check in Workflow
+
+For the chat workflow specifically, ownership is checked twice — once at the router level and once inside the workflow itself:
+
+```
+  POST /workflows/chat/run
+            │
+            ▼
+  get_current_user()
+  ← Layer 1: JWT verified, user_id extracted and stored in ContextVar
+            │
+            ▼
+  ChatWorkflow.route_and_answer()
+            │
+            ▼
+  validate_conversation_access(user_id, conversation_id, db)
+  ← Layer 2: explicit check that the conversation belongs to this user
+  ← raises NotFoundError (404) if ownership fails
+            │
+            ▼
+  Continue processing
+```
+
+This double check ensures that even if a request somehow bypasses the router dependency, the workflow will still reject any attempt to access a conversation that does not belong to the authenticated user.
+
+## 6. Routers
+
+The application exposes four routers:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Router            │  Prefix               │  Tag           │
+├─────────────────────────────────────────────────────────────┤
+│  auth.router       │  /auth                │ authentication │
+│  conversations     │  /api/conversations   │ conversations  │
+│  presentations     │  /api/presentations   │ presentations  │
+│  workflow          │  /workflows           │ workflows      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- `/auth` — registration, login, token refresh, OAuth, password reset, sign out
+- `/api/conversations` — CRUD for conversations and messages
+- `/api/presentations` — read presentation versions and page content
+- `/workflows/chat/run` — the main chat endpoint that triggers the AI workflow
+
+## 7. Middleware
+
+Middleware is applied in the following order (last registered = first executed):
+
+```
+     Incoming Request
+              │
+              ▼
+┌───────────────────────────┐
+│  RequestLoggingMiddleware │  ← runs first
+└─────────────┬─────────────┘
+              │
+              ▼
+┌───────────────────────────┐
+│      CORSMiddleware       │  ← runs second
+└─────────────┬─────────────┘
+              │
+              ▼
+         Route Handler
+```
+
+**RequestLoggingMiddleware** (`app/logging/middleware.py`):
+- Generates a unique `request_id` for every request
+- Binds `request_id`, `method`, and `path` to the structured log context so every log line within a request carries these fields
+- Logs `request_started` at the beginning and `request_completed` (with status code and duration) at the end
+- Skips logging for noise paths: `/health`, `/docs`, `/openapi.json`, `/favicon.ico`
+
+**CORSMiddleware**:
+- Allows cross-origin requests from frontend origins configured via `CORS_ORIGINS` environment variable
+- Supports credentials, all methods, and all headers
+
+## 8. Database Session
+
+The database session is managed via a FastAPI dependency (`get_db`) injected into every router handler that needs database access.
+
+```
+  Request arrives
+        │
+        ▼
+  get_db() opens a new SQLAlchemy session
+        │
+        ▼
+  Session passed to router → service → repository
+        │
+        ▼
+  Request completes (success or error)
+        │
+        ▼
+  session.close() — always runs in finally block
+```
+
+- Each request gets its own isolated session
+- Sessions are never shared across requests
+- If an operation fails, the repository calls `db.rollback()` before returning
+
+## 9. Application Lifespan
+
+The server uses FastAPI's `lifespan` context manager to run startup and shutdown logic:
+
+```
+  Server starts
+       │
+       ▼
+  setup_logging()          ← initialise structlog
+  start_scheduler()        ← start APScheduler (token cleanup every 24h)
+       │
+       ▼
+  Server is running...
+       │
+       ▼
+  Server shuts down
+       │
+       ▼
+  stop_scheduler()         ← graceful shutdown of background scheduler
+```
+
+## 10. Global Exception Handler
+
+Any unhandled exception that escapes a router handler is caught by the global exception handler registered in `main.py`. It:
+- Logs the full stack trace with `error_type`, `error_message`, HTTP method, and path
+- Returns a generic `500 Internal Server Error` response to the client without leaking internal details
+
+Application-level exceptions (`AppException` and its subclasses) are handled at the router level before reaching the global handler. See [11_Exception.md](11_Exception.md) for details.
+
+## 11. Logging
+
+The application uses **structlog** for structured JSON logging. Every log line is a JSON object with consistent fields — making it easy to search, filter, and ship to external log storage.
+
+```
+  Application code
+        │
+        ▼
+  structlog (JSON formatter)
+        │
+        ▼
+  Log file / stdout
+        │
+        ▼
+  Promtail (collector) → Loki (storage) → Grafana (visualizer)
+```
+
+Key behaviors:
+- Every request is assigned a unique `request_id` by `RequestLoggingMiddleware`, which is attached to all log lines within that request
+- `user_id` is bound to the log context after JWT verification, so all downstream log lines include who made the request
+- Sensitive data is sanitized before logging via `app/logging/sanitizer.py`
+
+See [13_Logging.md](13_Logging.md) for full details.
+ 
