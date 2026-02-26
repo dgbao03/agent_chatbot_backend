@@ -13,7 +13,7 @@ from llama_index.core.workflow.events import Event
 from app.config.pydantic_outputs import RouterOutput, SlideOutput, SecurityOutput
 from app.config.types import Presentation
 from app.config.prompts import SECURITY_CHECK_PROMPT, ERROR_GENERAL
-from app.utils.helpers import save_error_response
+from app.services.message_service import save_error_response
 from app.tools import registry
 from app.exceptions import AccessDeniedError, ValidationError, DatabaseError
 from app.auth.context import get_current_user_id, get_current_db_session

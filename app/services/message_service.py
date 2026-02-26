@@ -6,6 +6,8 @@ call a named, intentional operation rather than constructing raw dicts.
 """
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from app.config.types import Message
 from app.repositories.chat_repository import save_message
 
@@ -62,3 +64,40 @@ def save_assistant_message(
     }
     saved = save_message(message, db)
     return saved["id"] if saved else None
+
+
+async def save_error_response(
+    conversation_id: str,
+    db: Session,
+    content: str,
+    result_dict: dict,
+    memory: Optional[object] = None,
+    ctx: Optional[object] = None,
+) -> dict:
+    """
+    Save assistant error message to DB. Optionally add to memory and update ctx.store.
+    Returns result_dict for workflow to wrap in StopEvent.
+    """
+    assistant_message: Message = {
+        "conversation_id": conversation_id,
+        "role": "assistant",
+        "content": content,
+        "intent": "GENERAL",
+        "metadata": {"error_fallback": True},
+    }
+    saved = save_message(assistant_message, db)
+    msg_id = saved["id"] if saved else None
+
+    if memory is not None and ctx is not None:
+        from llama_index.core.llms import ChatMessage, MessageRole
+
+        memory.put(
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=content,
+                additional_kwargs={"message_id": msg_id},
+            )
+        )
+        await ctx.store.set("chat_history", memory)
+
+    return result_dict
