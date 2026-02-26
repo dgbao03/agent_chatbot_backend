@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from app.models.token_blacklist import TokenBlacklist
 from uuid import UUID
+from app.exceptions import DatabaseError
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +46,7 @@ def add_token_to_blacklist(
     except Exception as e:
         logger.exception("add_token_to_blacklist_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to add token to blacklist: {e}") from e
 
 
 def is_token_blacklisted(token_jti: str, db: Session) -> bool:
@@ -66,9 +67,9 @@ def is_token_blacklisted(token_jti: str, db: Session) -> bool:
         
         return exists is not None
         
-    except Exception:
+    except Exception as e:
         logger.exception("is_token_blacklisted_failed")
-        return False
+        raise DatabaseError(f"Failed to check token blacklist: {e}") from e
 
 
 def cleanup_expired_tokens(db: Session) -> int:
@@ -91,7 +92,7 @@ def cleanup_expired_tokens(db: Session) -> int:
         db.commit()
         return deleted
         
-    except Exception:
+    except Exception as e:
         logger.exception("cleanup_expired_tokens_failed")
         db.rollback()
-        return 0
+        raise DatabaseError(f"Failed to cleanup expired tokens: {e}") from e

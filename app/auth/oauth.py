@@ -5,7 +5,7 @@ import secrets
 from typing import Dict, Optional, Tuple
 from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
-from app.repositories.user_repository import get_user_by_email, create_user
+from app.repositories.user_repository import get_user_by_email, create_user, update_user
 from app.models import User
 from app.config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from app.logging import get_logger
@@ -158,20 +158,19 @@ def get_or_create_oauth_user(
             current_providers = list(existing_user.providers or [])
             if provider not in current_providers:
                 current_providers.append(provider)
-                existing_user.providers = current_providers
-            existing_user.provider_user_id = provider_user_id
 
-            # Update profile info if not set
+            update_data: Dict = {
+                "providers": current_providers,
+                "provider_user_id": provider_user_id,
+                "email_verified": True,
+            }
             if not existing_user.name and name:
-                existing_user.name = name
+                update_data["name"] = name
             if not existing_user.avatar_url and avatar_url:
-                existing_user.avatar_url = avatar_url
+                update_data["avatar_url"] = avatar_url
 
-            existing_user.email_verified = True
-            db.commit()
-            db.refresh(existing_user)
-
-            return (existing_user, False)
+            updated = update_user(str(existing_user.id), update_data, db)
+            return (updated, False)
         else:
             # Create new user
             user_data = {

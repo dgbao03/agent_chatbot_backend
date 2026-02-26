@@ -4,6 +4,7 @@ Authentication context - User ID and DB session context management.
 from contextvars import ContextVar
 from typing import Optional
 from sqlalchemy.orm import Session
+from app.exceptions import AuthenticationError, DatabaseError
 
 # Context variable for user_id (replaces RLS in self-hosted DB)
 _current_user_id: ContextVar[Optional[str]] = ContextVar("current_user_id", default=None)
@@ -32,11 +33,11 @@ def get_current_user_id() -> Optional[str]:
         user_id or None if not authenticated
         
     Raises:
-        ValueError: If no user_id in context (unauthenticated request)
+        AuthenticationError: If no user_id in context (unauthenticated request)
     """
     user_id = _current_user_id.get()
     if not user_id:
-        raise ValueError("No authenticated user in context")
+        raise AuthenticationError("No authenticated user in context")
     return user_id
 
 
@@ -68,11 +69,11 @@ def get_current_db_session() -> Session:
         SQLAlchemy Session
         
     Raises:
-        ValueError: If no db session in context
+        DatabaseError: If no db session in context
     """
     db = _current_db_session.get()
     if not db:
-        raise ValueError("No database session in context")
+        raise DatabaseError("No database session in context")
     return db
 
 

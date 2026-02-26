@@ -9,7 +9,6 @@ Centralizes all conversation-related business logic:
 from typing import Optional, Tuple, List, Dict, Any
 from sqlalchemy.orm import Session
 
-from app.models import Conversation
 from app.repositories.conversation_repository import (
     create_new_conversation,
     update_conversation_title,
@@ -42,21 +41,11 @@ def validate_conversation_access(user_id: str, conversation_id: str, db: Session
 
     Raises:
         NotFoundError: If conversation not found or user doesn't own it
-        AccessDeniedError: If ownership check fails due to unexpected error
+        DatabaseError: If DB query fails (propagated from repository)
     """
-    try:
-        conversation = db.query(Conversation).filter(
-            Conversation.id == conversation_id,
-            Conversation.user_id == user_id
-        ).first()
-
-        if not conversation:
-            raise NotFoundError("Conversation", conversation_id)
-
-    except NotFoundError:
-        raise
-    except Exception as e:
-        raise AccessDeniedError("Unable to verify conversation ownership") from e
+    conv = get_conversation_by_id(conversation_id, user_id, db)
+    if conv is None:
+        raise NotFoundError("Conversation", conversation_id)
 
 
 def get_or_create_conversation(
