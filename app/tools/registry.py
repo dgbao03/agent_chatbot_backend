@@ -93,17 +93,14 @@ class ToolRegistry:
             ValueError: If tool not found or disabled
         """
         tool = self.get(name)
-        
+
         if tool is None:
-            return f"Error: Tool '{name}' not found"
-        
+            raise ValueError(f"Tool '{name}' not found")
+
         if not tool.enabled:
-            return f"Error: Tool '{name}' is disabled"
-        
-        try:
-            return tool.execute(**kwargs)
-        except Exception as e:
-            return f"Error executing tool '{name}': {str(e)}"
+            raise ValueError(f"Tool '{name}' is disabled")
+
+        return tool.execute(**kwargs)
     
     def get_llama_tools(self) -> List[FunctionTool]:
         """

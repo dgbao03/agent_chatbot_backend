@@ -9,6 +9,7 @@ from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
 from app.config.prompts import SUMMARY_INITIAL_PROMPT, SUMMARY_UPDATE_PROMPT
 from app.config.llm import get_summary_llm
+from app.config import settings
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +33,7 @@ def load_conversation_memory(conversation_id: str, db) -> ChatMemoryBuffer:
         ChatMemoryBuffer populated with the conversation's working-memory messages
     """
     chat_history = load_chat_history(conversation_id, db)
-    memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
+    memory = ChatMemoryBuffer.from_defaults(token_limit=settings.MEMORY_TOKEN_LIMIT)
 
     for chat in chat_history:
         memory.put(ChatMessage(
@@ -76,7 +77,7 @@ def split_messages_for_summary(
         return messages, []
     
     total_count = len(messages)
-    keep_count = max(1, int(total_count * 0.2))  # 20%, minimum 1 message
+    keep_count = max(1, int(total_count * settings.MEMORY_KEEP_RATIO))  # minimum 1 message
     
     # Find the last user message in all messages
     last_user_idx = -1
@@ -90,7 +91,7 @@ def split_messages_for_summary(
         return messages, []
     
     # Calculate number of messages to keep (20%)
-    target_keep_count = max(2, int(total_count * 0.2))  # Minimum 2 (1 user-assistant pair)
+    target_keep_count = max(2, int(total_count * settings.MEMORY_KEEP_RATIO))  # Minimum 2 (1 user-assistant pair)
     
     # Start from the last user message, collect user-assistant pairs
     keep_start_idx = last_user_idx

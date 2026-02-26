@@ -79,3 +79,14 @@ LOG_OUTPUT: str = os.getenv("LOG_OUTPUT", "stdout")    # "stdout" | "file" | "bo
 LOG_FILE_PATH: str = os.getenv("LOG_FILE_PATH", "logs/app.log")
 LOG_FILE_MAX_BYTES: int = int(os.getenv("LOG_FILE_MAX_BYTES", str(50 * 1024 * 1024)))  # 50MB
 LOG_FILE_BACKUP_COUNT: int = int(os.getenv("LOG_FILE_BACKUP_COUNT", "10"))
+
+# ============================================================
+# Memory
+# ============================================================
+MEMORY_TOKEN_LIMIT: int = int(os.getenv("MEMORY_TOKEN_LIMIT", "2000"))
+MEMORY_KEEP_RATIO: float = float(os.getenv("MEMORY_KEEP_RATIO", "0.2"))
+
+# ============================================================
+# Password Reset
+# ============================================================
+PASSWORD_RESET_EXPIRE_MINUTES: int = int(os.getenv("PASSWORD_RESET_EXPIRE_MINUTES", "15"))

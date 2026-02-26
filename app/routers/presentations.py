@@ -2,7 +2,7 @@
 Presentations Router - Presentation read endpoints
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -13,10 +13,7 @@ from app.schemas.presentation import (
 )
 from app.auth.dependencies import get_current_user
 from app.database.session import get_db
-from app.repositories.presentation_repository import (
-    get_presentation_versions,
-    get_version_content,
-)
+from app.services import presentation_service
 
 router = APIRouter(prefix="/presentations", tags=["presentations"])
 
@@ -28,10 +25,7 @@ async def list_presentation_versions(
     db: Session = Depends(get_db),
 ):
     """Get all versions of a presentation"""
-    versions = get_presentation_versions(str(presentation_id), db, user_id=user_id)
-    if not versions:
-        raise HTTPException(status_code=404, detail="Presentation not found")
-    # Map created_at to timestamp for FE compatibility
+    versions = presentation_service.get_presentation_versions(str(presentation_id), user_id, db)
     return [
         VersionInfoResponse(
             version=v["version"],
@@ -53,9 +47,7 @@ async def get_version_content_endpoint(
     db: Session = Depends(get_db),
 ):
     """Get pages content of a specific version"""
-    data = get_version_content(str(presentation_id), version, db, user_id=user_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="Version not found")
+    data = presentation_service.get_version_content(str(presentation_id), version, user_id, db)
     pages = [
         PageContentResponse(
             page_number=p.page_number,

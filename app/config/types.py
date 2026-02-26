@@ -2,7 +2,10 @@
 Type definitions - Shared data structures using TypedDict.
 These types represent the structure of data returned from repositories and used across the application.
 """
-from typing import TypedDict, Optional, List, Literal
+from typing import TypedDict, Optional, List, Literal, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.config.pydantic_outputs import PageContent
 
 
 # ============================================
@@ -82,7 +85,7 @@ class PresentationWithPages(TypedDict, total=False):
     topic: str
     total_pages: int
     version: int
-    pages: List[dict]  # List[PageContent] from pydantic_outputs
+    pages: List["PageContent"]
     metadata: Optional[dict]
     created_at: Optional[str]
     updated_at: Optional[str]
@@ -99,6 +102,6 @@ class PresentationVersion(TypedDict, total=False):
 
 class VersionContent(TypedDict, total=False):
     """Version content - aggregated from presentation_version_pages or presentation_pages."""
-    pages: List[dict]  # List[PageContent] from pydantic_outputs
+    pages: List["PageContent"]
     total_pages: int
 

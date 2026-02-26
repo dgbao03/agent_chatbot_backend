@@ -2,7 +2,7 @@
 Conversations Router - Conversation CRUD endpoints
 """
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -15,14 +15,7 @@ from app.schemas.conversation import (
 from app.schemas.presentation import ActivePresentationResponse
 from app.auth.dependencies import get_current_user
 from app.database.session import get_db
-from app.repositories.conversation_repository import (
-    list_conversations,
-    get_conversation_by_id,
-    update_conversation,
-    delete_conversation,
-)
-from app.repositories.chat_repository import load_all_messages_for_conversation
-from app.repositories.presentation_repository import get_active_presentation
+from app.services import conversation_service
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -33,8 +26,7 @@ async def list_conversations_endpoint(
     db: Session = Depends(get_db),
 ):
     """Get all conversations for current user"""
-    data = list_conversations(user_id, db)
-    return data
+    return conversation_service.list_conversations(user_id, db)
 
 
 @router.get("/{conversation_id}/exists", response_model=ExistsResponse)
@@ -44,8 +36,8 @@ async def check_conversation_exists(
     db: Session = Depends(get_db),
 ):
     """Check if conversation exists and belongs to user"""
-    conv = get_conversation_by_id(str(conversation_id), user_id, db)
-    return ExistsResponse(exists=conv is not None)
+    exists = conversation_service.check_conversation_exists(str(conversation_id), user_id, db)
+    return ExistsResponse(exists=exists)
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
@@ -55,10 +47,7 @@ async def get_conversation(
     db: Session = Depends(get_db),
 ):
     """Get conversation by ID (404 if not found or not owned)"""
-    conv = get_conversation_by_id(str(conversation_id), user_id, db)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conv
+    return conversation_service.get_conversation(str(conversation_id), user_id, db)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationResponse)
@@ -69,10 +58,9 @@ async def update_conversation_endpoint(
     db: Session = Depends(get_db),
 ):
     """Update conversation (e.g. title)"""
-    conv = update_conversation(str(conversation_id), user_id, body.model_dump(exclude_unset=True), db)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conv
+    return conversation_service.update_conversation(
+        str(conversation_id), user_id, body.model_dump(exclude_unset=True), db
+    )
 
 
 @router.delete("/{conversation_id}", status_code=204)
@@ -82,9 +70,7 @@ async def delete_conversation_endpoint(
     db: Session = Depends(get_db),
 ):
     """Delete a conversation"""
-    deleted = delete_conversation(str(conversation_id), user_id, db)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conversation_service.delete_conversation(str(conversation_id), user_id, db)
 
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])
@@ -94,8 +80,7 @@ async def get_messages(
     db: Session = Depends(get_db),
 ):
     """Get all messages in a conversation"""
-    messages = load_all_messages_for_conversation(str(conversation_id), user_id, db)
-    # Map to MessageResponse - include metadata for PPTX (pages, slide_id, etc.)
+    messages = conversation_service.get_messages(str(conversation_id), user_id, db)
     return [
         MessageResponse(
             id=m["id"],
@@ -117,5 +102,5 @@ async def get_active_presentation_endpoint(
     db: Session = Depends(get_db),
 ):
     """Get active presentation ID for a conversation"""
-    presentation_id = get_active_presentation(str(conversation_id), db, user_id=user_id)
+    presentation_id = conversation_service.get_active_presentation(str(conversation_id), user_id, db)
     return ActivePresentationResponse(presentation_id=presentation_id)

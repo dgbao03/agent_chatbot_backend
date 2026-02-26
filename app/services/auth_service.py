@@ -39,6 +39,7 @@ from app.auth.oauth import (
     get_google_user_info,
     get_or_create_oauth_user,
 )
+from app.config import settings
 from app.config.settings import FRONTEND_URL
 from app.exceptions import (
     AppException,
@@ -309,7 +310,7 @@ async def request_password_reset(email: str, db: Session) -> None:
     if "email" not in (user.providers or []):
         return
 
-    token_str = create_reset_token(str(user.id), expires_minutes=15, db=db)
+    token_str = create_reset_token(str(user.id), expires_minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES, db=db)
     if not token_str:
         return
 

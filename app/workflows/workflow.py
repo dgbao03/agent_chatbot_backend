@@ -23,7 +23,7 @@ from app.utils.helpers import save_error_response
 from app.tools import registry
 from app.exceptions import AccessDeniedError, ValidationError, DatabaseError
 from app.auth.context import get_current_user_id, get_current_db_session
-from app.services.chat_service import get_or_create_conversation
+from app.services.conversation_service import get_or_create_conversation
 from app.services.presentation_service import detect_presentation_intent
 from app.services import memory_service, context_service, message_service
 from app.workflows.memory_manager import process_memory_truncation

@@ -23,6 +23,9 @@ def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
 
     Returns:
         List of conversation dicts
+
+    Raises:
+        DatabaseError: On DB failure
     """
     try:
         conversations = (
@@ -42,9 +45,9 @@ def list_conversations(user_id: str, db: Session) -> List[ConversationDict]:
             }
             for c in conversations
         ]
-    except Exception:
+    except Exception as e:
         logger.exception("list_conversations_failed")
-        return []
+        raise DatabaseError(f"Failed to list conversations: {e}") from e
 
 
 def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> Optional[ConversationDict]:
@@ -75,9 +78,9 @@ def get_conversation_by_id(conversation_id: str, user_id: str, db: Session) -> O
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }
-    except Exception:
+    except Exception as e:
         logger.exception("get_conversation_by_id_failed")
-        return None
+        raise DatabaseError(f"Failed to get conversation: {e}") from e
 
 
 def update_conversation(
@@ -115,10 +118,10 @@ def update_conversation(
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         }
-    except Exception:
+    except Exception as e:
         logger.exception("update_conversation_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to update conversation: {e}") from e
 
 
 def delete_conversation(conversation_id: str, user_id: str, db: Session) -> bool:
@@ -144,10 +147,10 @@ def delete_conversation(conversation_id: str, user_id: str, db: Session) -> bool
         db.delete(conv)
         db.commit()
         return True
-    except Exception:
+    except Exception as e:
         logger.exception("delete_conversation_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to delete conversation: {e}") from e
 
 
 def create_new_conversation(user_id: str, db: Session) -> str:
@@ -206,15 +209,14 @@ def update_conversation_title(conversation_id: str, title: str, db: Session) -> 
         
         if not conversation:
             return False
-        
-        # Update title
+
         conversation.title = title
         db.commit()
-        
+
         return True
-            
-    except Exception:
+
+    except Exception as e:
         logger.exception("update_conversation_title_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to update conversation title: {e}") from e
 

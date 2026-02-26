@@ -17,6 +17,7 @@ from app.config.types import (
     PresentationVersion as PresentationVersionDict,
     VersionContent,
 )
+from app.exceptions import DatabaseError
 from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
@@ -93,10 +94,10 @@ def create_presentation(
             "updated_at": new_presentation.updated_at.isoformat() if new_presentation.updated_at else None,
         }
         
-    except Exception:
+    except Exception as e:
         logger.exception("create_presentation_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to create presentation: {e}") from e
 
 
 def load_presentation(presentation_id: str, db: Session) -> Optional[PresentationWithPages]:
@@ -150,9 +151,9 @@ def load_presentation(presentation_id: str, db: Session) -> Optional[Presentatio
             "updated_at": presentation.updated_at.isoformat() if presentation.updated_at else None,
         }
         
-    except Exception:
+    except Exception as e:
         logger.exception("load_presentation_failed")
-        return None
+        raise DatabaseError(f"Failed to load presentation: {e}") from e
 
 
 def update_presentation(
@@ -261,10 +262,10 @@ def update_presentation(
             "updated_at": current_presentation.updated_at.isoformat() if current_presentation.updated_at else None,
         }
         
-    except Exception:
+    except Exception as e:
         logger.exception("update_presentation_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to update presentation: {e}") from e
 
 
 def get_presentation_versions(
@@ -329,7 +330,7 @@ def get_presentation_versions(
         
     except Exception as e:
         logger.exception("get_presentation_versions_failed")
-        return []
+        raise DatabaseError(f"Failed to get presentation versions: {e}") from e
 
 
 def get_version_content(
@@ -396,9 +397,9 @@ def get_version_content(
         
         return {"pages": pages, "total_pages": len(pages)}
         
-    except Exception:
+    except Exception as e:
         logger.exception("get_version_content_failed")
-        return None
+        raise DatabaseError(f"Failed to get version content: {e}") from e
 
 
 def get_active_presentation(
@@ -430,9 +431,9 @@ def get_active_presentation(
         
         return str(conversation.active_presentation_id)
         
-    except Exception:
+    except Exception as e:
         logger.exception("get_active_presentation_failed")
-        return None
+        raise DatabaseError(f"Failed to get active presentation: {e}") from e
 
 
 def set_active_presentation(conversation_id: str, presentation_id: str, db: Session) -> bool:
@@ -466,10 +467,10 @@ def set_active_presentation(conversation_id: str, presentation_id: str, db: Sess
         
         return True
         
-    except Exception:
+    except Exception as e:
         logger.exception("set_active_presentation_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to set active presentation: {e}") from e
 
 
 def list_presentations(conversation_id: str, db: Session) -> List[PresentationDict]:
@@ -521,7 +522,7 @@ def list_presentations(conversation_id: str, db: Session) -> List[PresentationDi
         
         return presentations
         
-    except Exception:
+    except Exception as e:
         logger.exception("list_presentations_failed")
-        return []
+        raise DatabaseError(f"Failed to list presentations: {e}") from e
 

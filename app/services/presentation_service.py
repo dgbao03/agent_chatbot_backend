@@ -1,16 +1,18 @@
 """
 Presentation service - Business logic for presentation management.
 """
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.config.pydantic_outputs import SlideIntentOutput
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
-from app.exceptions import LLMError
+from app.exceptions import LLMError, NotFoundError
 from app.config.settings import LLM_MODEL
 from app.logging import get_logger
 from app.repositories.presentation_repository import (
     list_presentations,
-    get_active_presentation
+    get_active_presentation,
+    get_presentation_versions as repo_get_presentation_versions,
+    get_version_content as repo_get_version_content,
 )
 
 logger = get_logger(__name__)
@@ -119,4 +121,36 @@ IMPORTANT: Carefully match user request with presentation topics!
         
     except Exception as e:
         raise LLMError(f"Intent detection failed: {e}") from e
+
+
+# ---------------------------------------------------------------------------
+# CRUD — used by routers/presentations.py
+# ---------------------------------------------------------------------------
+
+def get_presentation_versions(presentation_id: str, user_id: str, db) -> list:
+    """
+    Get all versions metadata for a presentation.
+
+    Raises:
+        NotFoundError: If presentation not found or not owned by user
+        DatabaseError: On DB failure (propagated from repository)
+    """
+    versions = repo_get_presentation_versions(presentation_id, db, user_id=user_id)
+    if not versions:
+        raise NotFoundError("Presentation", presentation_id)
+    return versions
+
+
+def get_version_content(presentation_id: str, version: int, user_id: str, db) -> dict:
+    """
+    Get pages content of a specific presentation version.
+
+    Raises:
+        NotFoundError: If version not found or presentation not owned by user
+        DatabaseError: On DB failure (propagated from repository)
+    """
+    data = repo_get_version_content(presentation_id, version, db, user_id=user_id)
+    if data is None:
+        raise NotFoundError("Presentation version", str(version))
+    return data
 
