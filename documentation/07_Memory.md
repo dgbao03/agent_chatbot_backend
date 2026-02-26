@@ -389,19 +389,20 @@ User facts are managed entirely through three tools. All three tools access `use
 
 ### 4.4. How user facts are used in context
 
-At the start of every `route_and_answer` step, user facts are loaded and formatted for injection into the system prompt:
+At the start of every `route_and_answer` step, user facts are loaded and formatted for injection into the system prompt via `build_chat_context` in `context_service.py`:
 
 ```python
-user_facts_text = format_user_facts_for_prompt(user_id)
+user_facts_text = _get_user_facts_text(user_id, db)
 ```
 
 ```python
-def format_user_facts_for_prompt(user_id: str) -> str:
+# private helper in context_service.py
+def _get_user_facts_text(user_id: str, db: Session) -> str:
     facts = load_user_facts(user_id, db)
-    formatted_lines = ["USER FACTS (Information about the user):"]
+    lines = ["USER FACTS (Information about the user):"]
     for fact in facts:
-        formatted_lines.append(f"- {fact['key']}: {fact['value']}")
-    return "\n".join(formatted_lines)
+        lines.append(f"- {fact['key']}: {fact['value']}")
+    return "\n".join(lines) if len(lines) > 1 else ""
 ```
 
 Injected into system prompt:

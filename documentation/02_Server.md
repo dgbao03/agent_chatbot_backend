@@ -99,8 +99,8 @@ agent_chat_backend/
     │       └── url_extractor.py        # extract_url_content
     │
     ├── utils/
-    │   ├── formatters.py               # format_user_facts_for_prompt, format_messages_for_summary
-    │   ├── helpers.py                  # find_fact_by_key, save_error_response
+    │   ├── formatters.py               # format_messages_for_summary
+    │   ├── helpers.py                  # find_fact_by_key
     │   └── title_generator.py          # generate_conversation_title (no LLM, pattern-based)
     │
     └── workflows/
@@ -236,12 +236,11 @@ There are two mechanisms for passing `user_id` depending on the context:
   (scoped to the current async task)
             │
             ▼
-  Repositories inside workflow call
-  get_current_user_id()
-  to retrieve user_id without explicit parameter passing
+  Workflow steps read user_id via get_current_user_id()
+  and pass it explicitly to service and repository functions
 ```
 
-The Workflow engine (LlamaIndex) does not support passing `user_id` as a function parameter across steps, so `contextvars.ContextVar` is used to propagate it safely within the scope of a single async request.
+The Workflow engine (LlamaIndex) does not support passing `user_id` as a function parameter across steps, so `contextvars.ContextVar` is used to propagate it safely within the scope of a single async request. Workflow steps read the value once via `get_current_user_id()` at the beginning of each step and then pass `user_id` explicitly as a parameter down through the service and repository layers.
 
 ### 5.3. Data isolation per table
 

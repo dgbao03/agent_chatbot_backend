@@ -266,22 +266,25 @@ Presentations do not have a direct `user_id` column. Ownership is verified by jo
 
 This pattern is used consistently in every repository function — `load_presentation`, `update_presentation`, `get_presentation_versions`, `get_version_content`, `get_active_presentation`.
 
-**`user_id` source — dual path:**
+**`user_id` source — consistent explicit passing:**
 
 ```
   Workflow context              API endpoint
   (generate_slide step)         (/presentations/* routes)
          │                              │
          ▼                              ▼
-  get_current_user_id()         user_id passed explicitly
-  ← from ContextVar             ← from get_current_user dependency
+  get_current_user_id()         get_current_user dependency
+  ← reads from ContextVar       ← JWT token verification
          │                              │
          └──────────────┬───────────────┘
                         ▼
-              repository function
+              service function(user_id, ...)
+                        │
+                        ▼
+              repository function(user_id, ...)
 ```
 
-Repository functions accept an optional `user_id` parameter. If provided, it is used directly (API case). If not, it falls back to `get_current_user_id()` from ContextVar (workflow case).
+Repository functions always receive `user_id` as an explicit required parameter. The workflow steps read it once from ContextVar at the start of the step, and service functions pass it down through all layers.
 
 ---
 

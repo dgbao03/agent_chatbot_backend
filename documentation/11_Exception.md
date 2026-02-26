@@ -191,7 +191,7 @@ Not all errors inside the workflow raise an exception. Some failures — particu
 
 ### 4.1. `save_error_response()` utility
 
-Defined in `app/utils/helpers.py`. Called when workflow steps catch an unexpected exception and want to return a graceful response:
+Defined in `app/services/message_service.py`. Called when workflow steps catch an unexpected exception and want to return a graceful response:
 
 ```
   save_error_response(conversation_id, db, content, result_dict, memory, ctx)
