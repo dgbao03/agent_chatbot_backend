@@ -30,8 +30,8 @@ Base = declarative_base()
 def get_db():
     """
     FastAPI dependency to provide database session.
-    Automatically closes session after request.
-    
+    Automatically rolls back on exception and closes session after request.
+
     Usage:
         @router.get("/users")
         async def get_users(db: Session = Depends(get_db)):
@@ -41,5 +41,8 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
