@@ -69,7 +69,7 @@ async def detect_presentation_intent(
         system_prompt = PRESENTATION_INTENT_PROMPT
 
         user_message = f"""
-===== AVAILABLE PRESENTATIONS =====
+===== PRESENTATION INFORMATION =====
 {context}
 
 ===== USER REQUEST =====
