@@ -25,9 +25,9 @@ Built around a multi-step LLM workflow that handles security, intent routing, to
 Every user message goes through a 3-step `ChatWorkflow` powered by LlamaIndex:
 
 ```
-  User Message
-       │
-       ▼
+              User Message
+                  │
+                  ▼
   ┌─────────────────────────────────────────────┐
   │  Step 1: Security Check                     │
   │  Classify input as SAFE or EXPLOIT          │
