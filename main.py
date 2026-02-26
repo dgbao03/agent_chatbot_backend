@@ -13,6 +13,7 @@ from app.logging.middleware import RequestLoggingMiddleware
 from app.config.settings import CORS_ORIGINS
 from app.routers import auth, conversations, presentations, workflow
 from app.tasks.cleanup import start_scheduler, stop_scheduler
+from app.exceptions import AppException
 
 logger = get_logger(__name__)
 
@@ -43,6 +44,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AppException handler — converts service-layer exceptions to HTTP responses
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.message},
+    )
+
 
 # Global exception handler
 @app.exception_handler(Exception)

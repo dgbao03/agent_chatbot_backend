@@ -72,6 +72,14 @@ class DatabaseError(AppException):
         super().__init__(message)
 
 
+class AuthenticationError(AppException):
+    """Authentication failure (wrong credentials, invalid/expired token, etc.)."""
+    status_code = 401
+
+    def __init__(self, message: str = "Authentication failed"):
+        super().__init__(message)
+
+
 class ExternalServiceError(AppException):
     """Failure from an external service (third-party API, SMTP, etc.)."""
     status_code = 502

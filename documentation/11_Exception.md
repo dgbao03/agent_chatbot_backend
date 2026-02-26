@@ -14,6 +14,7 @@ The core principle: exceptions are **raised deep** (in Repository/Service/Workfl
   app/exceptions.py
   ─────────────────────────────────────────────────────────────
   AppException (base)
+  ├── AuthenticationError  (401)
   ├── NotFoundError        (404)
   ├── AccessDeniedError    (403)
   ├── ValidationError      (422)
@@ -32,6 +33,11 @@ The core principle: exceptions are **raised deep** (in Repository/Service/Workfl
   AppException
   │  status_code = 400
   │  message: str  ← safe to expose to client
+  │
+  ├── AuthenticationError (401)
+  │     Authentication failure (wrong credentials, invalid/expired token, etc.)
+  │     Constructor: AuthenticationError(message: str = "Authentication failed")
+  │     Example: AuthenticationError("Invalid email or password")
   │
   ├── NotFoundError (404)
   │     Resource not found (conversation, presentation, user, etc.)
@@ -70,6 +76,7 @@ The core principle: exceptions are **raised deep** (in Repository/Service/Workfl
 
 | Exception | HTTP Code | Raised When |
 |-----------|-----------|-------------|
+| `AuthenticationError` | 401 | Wrong credentials, invalid/expired token, user not found during auth |
 | `NotFoundError` | 404 | Resource doesn't exist (conversation, presentation, user) |
 | `AccessDeniedError` | 403 | User doesn't own the resource, or `user_id` context missing |
 | `ValidationError` | 422 | Missing required field, invalid input, business rule violation |
@@ -85,33 +92,44 @@ The system uses **two distinct approaches** to error handling, depending on whic
 
 ### 3.1. REST API endpoints (Auth, Conversations, Presentations)
 
-Auth, Conversations, and Presentations routers use FastAPI's native `HTTPException` directly — no `AppException` involved.
+REST endpoints delegate business logic to service functions. Services raise `AppException` subclasses on failure. A **global exception handler** registered in `main.py` catches these and converts them into HTTP responses automatically — routers do not need explicit `try/except` blocks.
 
 ```
   POST /auth/login
          │
          ▼
-  Check credentials
-  if invalid:
-    raise HTTPException(status_code=401, detail="Invalid email or password")
+  Router calls auth_service.login(email, password, db)
          │
          ▼
-  FastAPI automatically returns:
-  { "detail": "Invalid email or password" }  HTTP 401
+  Service raises AuthenticationError("Invalid email or password")
+         │
+         ▼
+  Global handler in main.py catches AppException:
+    → JSONResponse(status_code=401, content={"detail": "Invalid email or password"})
 ```
 
-These endpoints have straightforward logic without deep service layers, so using `HTTPException` directly is simpler and sufficient. Examples from the codebase:
+The global handler in `main.py`:
 
 ```python
-# auth.py
-raise HTTPException(status_code=401, detail="Invalid email or password")
-raise HTTPException(status_code=400, detail="Email already registered")
+@app.exception_handler(AppException)
+async def app_exception_handler(request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.message},
+    )
+```
 
-# conversations.py
-raise HTTPException(status_code=404, detail="Conversation not found")
+Examples of exceptions raised by services:
 
-# presentations.py
-raise HTTPException(status_code=404, detail="Presentation not found")
+```python
+# services/auth_service.py
+raise AppException("Email already registered")          # 400
+raise AuthenticationError("Invalid email or password")  # 401
+raise DatabaseError("Failed to create user")            # 500
+
+# services/chat_service.py
+raise NotFoundError("Conversation", conversation_id)    # 404
+raise AccessDeniedError("Unable to verify ownership")   # 403
 ```
 
 ### 3.2. Workflow endpoint (`POST /workflows/chat/run`)
@@ -139,13 +157,13 @@ except Exception as e:            # unexpected internal error
     )
 ```
 
-**Key difference from REST endpoints:**
+**Key difference between REST and Workflow:**
 
 | | REST Endpoints | Workflow Endpoint |
 |-|----------------|-------------------|
-| Error class used | `HTTPException` | `AppException` subclasses |
-| Catch location | Not needed (FastAPI handles it) | Explicit `try/except` in router |
-| Unexpected error message | FastAPI default 500 | `ERROR_GENERAL` constant (generic) |
+| Error class used | `AppException` subclasses (via service) | `AppException` subclasses |
+| Catch location | Global handler in `main.py` | Explicit `try/except` in router |
+| Unexpected error message | Global handler → HTTP 500 | `ERROR_GENERAL` constant (generic) |
 | Error format | `{"detail": "..."}` | `{"status": "error", "error": "..."}` |
 
 ---
@@ -275,13 +293,14 @@ The `metadata.error_fallback: True` flag marks the message as an error response 
 
 | Exception | Raised by | Caught by | Client sees |
 |-----------|-----------|-----------|-------------|
-| `NotFoundError` | Service | Workflow router | HTTP 404 `{"error": "Conversation not found: abc"}` |
+| `AuthenticationError` | Auth Service | Global handler (`main.py`) | HTTP 401 `{"detail": "Invalid email or password"}` |
+| `NotFoundError` | Service | Workflow router / Global handler | HTTP 404 `{"error": "Conversation not found: abc"}` |
 | `AccessDeniedError` | Workflow, Service | Workflow router | HTTP 403 `{"error": "Access denied"}` |
 | `ValidationError` | Workflow | Workflow router | HTTP 422 `{"error": "target_presentation_id required..."}` |
 | `LLMError` | Service | Workflow router | HTTP 502 `{"error": "LLM processing failed"}` |
-| `DatabaseError` | Repository, Workflow | Workflow router | HTTP 500 `{"error": "Database operation failed"}` |
+| `DatabaseError` | Repository, Workflow, Auth Service | Workflow router / Global handler | HTTP 500 `{"error": "Database operation failed"}` |
 | `ExternalServiceError` | Tools / Services | Workflow router | HTTP 502 `{"error": "WeatherAPI error: ..."}` |
-| Unexpected `Exception` | Anywhere | Workflow router | HTTP 500 `{"error": ERROR_GENERAL}` |
+| Unexpected `Exception` | Anywhere | Workflow router / Global handler | HTTP 500 `{"detail": "Internal server error"}` |
 
 ---
 
