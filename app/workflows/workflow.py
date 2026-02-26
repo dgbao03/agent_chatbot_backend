@@ -204,7 +204,7 @@ class ChatWorkflow(Workflow):
         openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
 
         # 2. Memory management
-        memory = memory_service.load_conversation_memory(conversation_id, db)
+        memory = memory_service.load_conversation_memory(conversation_id, user_id, db)
         await ctx.store.set("chat_history", memory)
         history = memory.get()
 
@@ -416,14 +416,14 @@ class ChatWorkflow(Workflow):
         previous_pages = None
         total_pages = None
         if target_presentation_id:
-            presentation_data = get_presentation(target_presentation_id, db)
+            presentation_data = get_presentation(target_presentation_id, user_id, db)
             if presentation_data:
                 previous_pages = presentation_data["pages"]
                 total_pages = presentation_data["total_pages"]
 
         # Context assembly for slide generation
         system_content, target_page_number = context_service.build_slide_context(
-            conversation_id, history, action, previous_pages, total_pages, target_page_number, db
+            conversation_id, user_id, history, action, previous_pages, total_pages, target_page_number, db
         )
 
         slide_messages = [
@@ -499,6 +499,7 @@ class ChatWorkflow(Workflow):
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
+                    user_id=user_id,
                     db=db,
                 )
                 presentation_id = saved_presentation["id"]
@@ -522,10 +523,11 @@ class ChatWorkflow(Workflow):
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
+                    user_id=user_id,
                     db=db,
                 )
                 presentation_id = updated_presentation["id"]
-                activate_presentation(conversation_id, presentation_id, db)
+                activate_presentation(conversation_id, presentation_id, user_id, db)
                 logger.info(
                     "presentation_updated",
                     presentation_id=presentation_id,

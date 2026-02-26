@@ -46,8 +46,8 @@ async def detect_presentation_intent(
     """
     try:
         # Get presentations list for this conversation
-        presentations = list_presentations(conversation_id, db)
-        active_id = get_active_presentation(conversation_id, db, user_id=user_id)
+        presentations = list_presentations(conversation_id, user_id, db)
+        active_id = get_active_presentation(conversation_id, user_id, db)
         
         # Build context
         if not presentations:
@@ -142,7 +142,7 @@ def get_presentation_versions(presentation_id: str, user_id: str, db) -> list:
         NotFoundError: If presentation not found or not owned by user
         DatabaseError: On DB failure (propagated from repository)
     """
-    versions = repo_get_presentation_versions(presentation_id, db, user_id=user_id)
+    versions = repo_get_presentation_versions(presentation_id, user_id, db)
     if not versions:
         raise NotFoundError("Presentation", presentation_id)
     return versions
@@ -156,7 +156,7 @@ def get_version_content(presentation_id: str, version: int, user_id: str, db: Se
         NotFoundError: If version not found or presentation not owned by user
         DatabaseError: On DB failure (propagated from repository)
     """
-    data = repo_get_version_content(presentation_id, version, db, user_id=user_id)
+    data = repo_get_version_content(presentation_id, version, user_id, db)
     if data is None:
         raise NotFoundError("Presentation version", str(version))
     return data
@@ -166,7 +166,7 @@ def get_version_content(presentation_id: str, version: int, user_id: str, db: Se
 # Write operations — used by workflow
 # ---------------------------------------------------------------------------
 
-def get_presentation(presentation_id: str, db: Session) -> Optional[dict]:
+def get_presentation(presentation_id: str, user_id: str, db: Session) -> Optional[dict]:
     """
     Load a presentation with its pages by ID.
 
@@ -174,13 +174,14 @@ def get_presentation(presentation_id: str, db: Session) -> Optional[dict]:
         PresentationWithPages dict, or None if not found
         DatabaseError: On DB failure (propagated from repository)
     """
-    return repo_load_presentation(presentation_id, db)
+    return repo_load_presentation(presentation_id, user_id, db)
 
 
 def save_new_presentation(
     presentation: PresentationDict,
     pages: List[PageContent],
     user_request: str,
+    user_id: str,
     db: Session,
 ) -> dict:
     """
@@ -193,6 +194,7 @@ def save_new_presentation(
         presentation=presentation,
         pages=pages,
         user_request=user_request,
+        user_id=user_id,
         db=db,
     )
     if not saved:
@@ -204,6 +206,7 @@ def save_updated_presentation(
     presentation: PresentationDict,
     pages: List[PageContent],
     user_request: str,
+    user_id: str,
     db: Session,
 ) -> dict:
     """
@@ -216,6 +219,7 @@ def save_updated_presentation(
         presentation=presentation,
         pages=pages,
         user_request=user_request,
+        user_id=user_id,
         db=db,
     )
     if not updated:
@@ -223,12 +227,12 @@ def save_updated_presentation(
     return updated
 
 
-def activate_presentation(conversation_id: str, presentation_id: str, db: Session) -> None:
+def activate_presentation(conversation_id: str, presentation_id: str, user_id: str, db: Session) -> None:
     """
     Set a presentation as the active one for a conversation.
 
     Raises:
         DatabaseError: On DB failure (propagated from repository)
     """
-    repo_set_active_presentation(conversation_id, presentation_id, db)
+    repo_set_active_presentation(conversation_id, presentation_id, user_id, db)
 

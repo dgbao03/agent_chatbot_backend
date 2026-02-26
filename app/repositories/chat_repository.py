@@ -6,28 +6,25 @@ from sqlalchemy.orm import Session
 from app.models import Message, Conversation
 from app.config.types import Message as MessageDict
 from app.exceptions import DatabaseError
-from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
+def load_chat_history(conversation_id: str, user_id: str, db: Session) -> List[MessageDict]:
     """
     Load working memory messages from database for a conversation.
     Returns list of messages in working memory, ordered by created_at.
     
     Args:
         conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         List of Message dicts with all fields populated (id, conversation_id, role, content, etc.)
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Verify conversation belongs to user (security check)
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,

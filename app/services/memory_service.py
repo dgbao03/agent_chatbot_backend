@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 llm = get_summary_llm()
 
 
-def load_conversation_memory(conversation_id: str, db: Session) -> ChatMemoryBuffer:
+def load_conversation_memory(conversation_id: str, user_id: str, db: Session) -> ChatMemoryBuffer:
     """
     Load conversation history from DB and initialise a ChatMemoryBuffer.
 
@@ -28,12 +28,13 @@ def load_conversation_memory(conversation_id: str, db: Session) -> ChatMemoryBuf
 
     Args:
         conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
         db: Database session
 
     Returns:
         ChatMemoryBuffer populated with the conversation's working-memory messages
     """
-    chat_history = load_chat_history(conversation_id, db)
+    chat_history = load_chat_history(conversation_id, user_id, db)
     memory = ChatMemoryBuffer.from_defaults(token_limit=settings.MEMORY_TOKEN_LIMIT)
 
     for chat in chat_history:
@@ -138,12 +139,13 @@ def split_messages_for_summary(
     return messages_to_summarize, messages_to_keep
 
 
-async def create_summary(conversation_id: str, messages: List[ChatMessage], db: Session) -> str:
+async def create_summary(conversation_id: str, user_id: str, messages: List[ChatMessage], db: Session) -> str:
     """
     Create summary from messages, combining with old summary if exists.
 
     Args:
         conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
         messages: List of ChatMessage objects from LlamaIndex memory to summarize
         db: Database session
         
@@ -152,7 +154,7 @@ async def create_summary(conversation_id: str, messages: List[ChatMessage], db: 
     """
     try:
         # Load old summary
-        old_summary_data = load_summary(conversation_id, db)
+        old_summary_data = load_summary(conversation_id, user_id, db)
         old_summary = old_summary_data.get("summary_content", "")
         
         # Format new messages

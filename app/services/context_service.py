@@ -16,8 +16,29 @@ from app.config.prompts import (
 )
 from app.config.pydantic_outputs import PageContent
 from app.repositories.summary_repository import load_summary
-from app.utils.formatters import format_user_facts_for_prompt
+from app.repositories.user_facts_repository import load_user_facts
 from app.tools import registry
+from app.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def _get_user_facts_text(user_id: str, db: Session) -> str:
+    """Build user facts string for injection into system prompt."""
+    try:
+        facts = load_user_facts(user_id, db)
+        if not facts:
+            return ""
+        lines = ["USER FACTS (Information about the user):"]
+        for fact in facts:
+            key = fact.get("key", "")
+            value = fact.get("value", "")
+            if key and value:
+                lines.append(f"- {key}: {value}")
+        return "\n".join(lines) if len(lines) > 1 else ""
+    except Exception:
+        logger.exception("get_user_facts_text_failed")
+        return ""
 
 
 def build_chat_context(
@@ -53,7 +74,7 @@ def build_chat_context(
         system_content += tool_instructions + "\n\n"
     system_content += TOOL_BEST_PRACTICES + "\n\n"
 
-    user_facts_text = format_user_facts_for_prompt(user_id)
+    user_facts_text = _get_user_facts_text(user_id, db)
     if user_facts_text:
         system_content += user_facts_text + "\n\n"
 
@@ -63,7 +84,7 @@ def build_chat_context(
             history_text += f"{msg.role.value}: {msg.content}\n"
         system_content += "\n\n" + history_text
 
-    summary_data = load_summary(conversation_id, db)
+    summary_data = load_summary(conversation_id, user_id, db)
     if summary_data.get("summary_content"):
         system_content += (
             "\n===== CONVERSATION SUMMARY =====\n"
@@ -75,6 +96,7 @@ def build_chat_context(
 
 def build_slide_context(
     conversation_id: str,
+    user_id: str,
     history: List[ChatMessage],
     action: str,
     previous_pages: Optional[List[PageContent]],
@@ -99,6 +121,7 @@ def build_slide_context(
 
     Args:
         conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
         history: Hydrated message list from ChatMemoryBuffer.get()
         action: "CREATE_NEW", "EDIT_SPECIFIC", or "EDIT_ACTIVE"
         previous_pages: Existing slide pages, or None for new presentations
@@ -117,7 +140,7 @@ def build_slide_context(
             history_text += f"{msg.role.value}: {msg.content}\n"
         system_content += "\n\n" + history_text
 
-    summary_data = load_summary(conversation_id, db)
+    summary_data = load_summary(conversation_id, user_id, db)
     if summary_data.get("summary_content"):
         system_content += (
             "\n===== CONVERSATION SUMMARY =====\n"

@@ -19,8 +19,9 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
         ctx: Workflow context
         memory: ChatMemoryBuffer to process
     """
-    # Get conversation_id and db from context
+    # Get conversation_id, user_id and db from context
     conversation_id = await ctx.store.get("conversation_id")
+    user_id = await ctx.store.get("user_id")
     db = await ctx.store.get("db")
     
     all_messages = memory.get_all()
@@ -65,7 +66,7 @@ async def process_memory_truncation(ctx: Context, memory: ChatMemoryBuffer) -> N
     messages_to_summarize, messages_to_keep = split_messages_for_summary(all_messages, is_empty_truncated)
 
     try:
-        summary_text = await create_summary(conversation_id, messages_to_summarize, db)
+        summary_text = await create_summary(conversation_id, user_id, messages_to_summarize, db)
         logger.info(
             "summary_created",
             conversation_id=conversation_id,

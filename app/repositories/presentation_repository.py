@@ -18,7 +18,6 @@ from app.config.types import (
     VersionContent,
 )
 from app.exceptions import DatabaseError
-from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +27,8 @@ def create_presentation(
     presentation: PresentationDict,
     pages: List[PageContent],
     user_request: str,
-    db: Session
+    user_id: str,
+    db: Session,
 ) -> Optional[PresentationDict]:
     """
     Create new presentation in database.
@@ -37,15 +37,13 @@ def create_presentation(
         presentation: Presentation dict with conversation_id, topic, total_pages
         pages: List of PageContent objects
         user_request: User's request text
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         Presentation dict with id and created_at set if successful, None otherwise
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Verify conversation belongs to user
         conversation = db.query(Conversation).filter(
             Conversation.id == presentation["conversation_id"],
@@ -100,21 +98,19 @@ def create_presentation(
         raise DatabaseError(f"Failed to create presentation: {e}") from e
 
 
-def load_presentation(presentation_id: str, db: Session) -> Optional[PresentationWithPages]:
+def load_presentation(presentation_id: str, user_id: str, db: Session) -> Optional[PresentationWithPages]:
     """
     Load presentation with current version pages.
     
     Args:
         presentation_id: UUID of presentation
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         PresentationWithPages dict with pages included, or None
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Get presentation with user authorization check
         presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
@@ -160,7 +156,8 @@ def update_presentation(
     presentation: PresentationDict,
     pages: List[PageContent],
     user_request: str,
-    db: Session
+    user_id: str,
+    db: Session,
 ) -> Optional[PresentationDict]:
     """
     Update presentation (archives current version, then updates).
@@ -169,6 +166,7 @@ def update_presentation(
         presentation: Presentation dict with id, topic, total_pages
         pages: New list of PageContent objects
         user_request: User's request text
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
@@ -179,9 +177,6 @@ def update_presentation(
         
         if not presentation_id:
             return None
-        
-        # Get current user for authorization check
-        user_id = get_current_user_id()
         
         # Get current presentation with user authorization
         current_presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
@@ -269,27 +264,24 @@ def update_presentation(
 
 
 def get_presentation_versions(
-    presentation_id: str, db: Session, user_id: Optional[str] = None
+    presentation_id: str, user_id: str, db: Session
 ) -> List[PresentationVersionDict]:
     """
     Get all versions metadata for a presentation.
     
     Args:
         presentation_id: UUID of presentation
+        user_id: UUID of the user (for ownership check)
         db: Database session
-        user_id: Optional - if provided use it, else use get_current_user_id() from context
         
     Returns:
         List of PresentationVersion dicts
     """
     try:
-        # Get user_id: explicit param or from context (for workflow)
-        uid = user_id or get_current_user_id()
-        
         # Verify presentation belongs to user
         presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
-            Conversation.user_id == uid  # Security: filter by user_id
+            Conversation.user_id == user_id  # Security: filter by user_id
         ).first()
         
         if not presentation:
@@ -334,7 +326,7 @@ def get_presentation_versions(
 
 
 def get_version_content(
-    presentation_id: str, version: int, db: Session, user_id: Optional[str] = None
+    presentation_id: str, version: int, user_id: str, db: Session
 ) -> Optional[VersionContent]:
     """
     Get pages content of a specific version.
@@ -342,20 +334,17 @@ def get_version_content(
     Args:
         presentation_id: UUID of presentation
         version: Version number
+        user_id: UUID of the user (for ownership check)
         db: Database session
-        user_id: Optional - if provided use it, else use get_current_user_id() from context
         
     Returns:
         VersionContent dict with pages and total_pages, or None
     """
     try:
-        # Get user_id: explicit param or from context (for workflow)
-        uid = user_id or get_current_user_id()
-        
         # Get presentation with user authorization
         presentation = db.query(Presentation).join(Conversation, Presentation.conversation_id == Conversation.id).filter(
             Presentation.id == presentation_id,
-            Conversation.user_id == uid  # Security: filter by user_id
+            Conversation.user_id == user_id  # Security: filter by user_id
         ).first()
         
         if not presentation:
@@ -403,27 +392,24 @@ def get_version_content(
 
 
 def get_active_presentation(
-    conversation_id: str, db: Session, user_id: Optional[str] = None
+    conversation_id: str, user_id: str, db: Session
 ) -> Optional[str]:
     """
     Get active presentation ID for a conversation.
     
     Args:
         conversation_id: UUID of conversation
+        user_id: UUID of the user (for ownership check)
         db: Database session
-        user_id: Optional - if provided use it, else use get_current_user_id() from context
         
     Returns:
         presentation_id or None
     """
     try:
-        # Get user_id: explicit param or from context (for workflow)
-        uid = user_id or get_current_user_id()
-        
         # Get conversation with user authorization
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,
-            Conversation.user_id == uid  # Security: filter by user_id
+            Conversation.user_id == user_id  # Security: filter by user_id
         ).first()
         
         if not conversation or not conversation.active_presentation_id:
@@ -436,22 +422,20 @@ def get_active_presentation(
         raise DatabaseError(f"Failed to get active presentation: {e}") from e
 
 
-def set_active_presentation(conversation_id: str, presentation_id: str, db: Session) -> bool:
+def set_active_presentation(conversation_id: str, presentation_id: str, user_id: str, db: Session) -> bool:
     """
     Set active presentation for a conversation.
     
     Args:
         conversation_id: UUID of conversation
         presentation_id: UUID of presentation
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         True if successful
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Get conversation with user authorization
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,
@@ -473,21 +457,19 @@ def set_active_presentation(conversation_id: str, presentation_id: str, db: Sess
         raise DatabaseError(f"Failed to set active presentation: {e}") from e
 
 
-def list_presentations(conversation_id: str, db: Session) -> List[PresentationDict]:
+def list_presentations(conversation_id: str, user_id: str, db: Session) -> List[PresentationDict]:
     """
     List all presentations for a conversation.
     
     Args:
         conversation_id: UUID of conversation
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         List of Presentation dicts (without pages)
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Verify conversation belongs to user
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,

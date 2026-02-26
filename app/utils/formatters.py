@@ -1,46 +1,9 @@
 """
 Format functions for converting data to text formats.
+Pure utility functions with no domain dependencies.
 """
 from typing import List
 from llama_index.core.llms import ChatMessage
-from app.repositories.user_facts_repository import load_user_facts
-from app.auth.context import get_current_db_session
-from app.logging import get_logger
-
-logger = get_logger(__name__)
-
-
-def format_user_facts_for_prompt(user_id: str) -> str:
-    """
-    Format user facts into text for injection into System Prompt.
-    
-    Args:
-        user_id: UUID of the user
-        
-    Returns:
-        Formatted string with user facts, or empty string if no facts exist
-    """
-    try:
-        db = get_current_db_session()
-        facts = load_user_facts(user_id, db)
-        if not facts:
-            return ""
-        
-        formatted_lines = ["USER FACTS (Information about the user):"]
-        for fact in facts:
-            key = fact.get("key", "")
-            value = fact.get("value", "")
-            if key and value:
-                formatted_lines.append(f"- {key}: {value}")
-        
-        if len(formatted_lines) == 1:  # Only header, no facts
-            return ""
-        
-        return "\n".join(formatted_lines)
-        
-    except Exception:
-        logger.exception("format_user_facts_failed")
-        return ""
 
 
 def format_messages_for_summary(messages: List[ChatMessage]) -> str:

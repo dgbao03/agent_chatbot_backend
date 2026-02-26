@@ -9,27 +9,24 @@ from sqlalchemy.dialects.postgresql import insert
 from app.models import ConversationSummary, Message, Conversation
 from app.config.types import SummaryDict
 from app.exceptions import DatabaseError
-from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def load_summary(conversation_id: str, db: Session) -> SummaryDict:
+def load_summary(conversation_id: str, user_id: str, db: Session) -> SummaryDict:
     """
     Load chat summary from database for a conversation.
     
     Args:
         conversation_id: UUID of the conversation
+        user_id: UUID of the user (for ownership check)
         db: Database session
     
     Returns:
         dict: {"summary_content": str} or {"summary_content": ""} if none
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Verify conversation belongs to user
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,

@@ -7,7 +7,6 @@ from sqlalchemy import desc
 from app.models import Conversation
 from app.config.types import Conversation as ConversationDict
 from app.exceptions import DatabaseError
-from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -185,22 +184,20 @@ def create_new_conversation(user_id: str, db: Session) -> str:
         raise DatabaseError(f"Failed to create conversation: {e}") from e
 
 
-def update_conversation_title(conversation_id: str, title: str, db: Session) -> bool:
+def update_conversation_title(conversation_id: str, title: str, user_id: str, db: Session) -> bool:
     """
     Update conversation title.
     
     Args:
         conversation_id: UUID of the conversation
         title: Title string to set
+        user_id: UUID of the user (for ownership check)
         db: Database session
         
     Returns:
         True if successful, False otherwise
     """
     try:
-        # Get current user for authorization check
-        user_id = get_current_user_id()
-        
         # Find conversation with user_id filter (replaces RLS)
         conversation = db.query(Conversation).filter(
             Conversation.id == conversation_id,

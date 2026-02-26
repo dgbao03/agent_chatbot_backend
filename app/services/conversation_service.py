@@ -84,12 +84,12 @@ def get_or_create_conversation(
 
         try:
             title = generate_conversation_title(user_input)
-            update_conversation_title(conversation_id, title, db)
+            update_conversation_title(conversation_id, title, user_id, db)
         except Exception:
             title = user_input[:60].strip()
             if len(user_input) > 60:
                 title += "..."
-            update_conversation_title(conversation_id, title, db)
+            update_conversation_title(conversation_id, title, user_id, db)
 
         logger.info("conversation_created", conversation_id=conversation_id, title=title)
         return conversation_id, conversation_id, title
