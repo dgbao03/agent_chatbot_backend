@@ -123,11 +123,11 @@ Examples of exceptions raised by services:
 
 ```python
 # services/auth_service.py
-raise AppException("Email already registered")          # 400
+raise ValidationError("Email already registered")       # 422
 raise AuthenticationError("Invalid email or password")  # 401
 raise DatabaseError("Failed to create user")            # 500
 
-# services/chat_service.py
+# services/conversation_service.py
 raise NotFoundError("Conversation", conversation_id)    # 404
 raise AccessDeniedError("Unable to verify ownership")   # 403
 ```

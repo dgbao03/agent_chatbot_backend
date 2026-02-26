@@ -45,6 +45,7 @@ from app.exceptions import (
     AppException,
     AuthenticationError,
     DatabaseError,
+    ValidationError,
 )
 from app.logging import get_logger
 
@@ -64,7 +65,7 @@ def register(email: str, password: str, name: Optional[str], db: Session) -> dic
     existing_user = get_user_by_email(email, db)
     if existing_user:
         logger.warning("register_failed", email=email, reason="email_already_registered")
-        raise AppException("Email already registered")
+        raise ValidationError("Email already registered")
 
     hashed_pwd = hash_password(password)
     user_data = {
@@ -323,11 +324,11 @@ def verify_password_reset_token(token: str, db: Session) -> None:
     Validate that a password-reset token is still usable.
 
     Raises:
-        AppException (400): token invalid or expired
+        ValidationError (422): token invalid or expired
     """
     token_record = get_valid_token(token, db)
     if not token_record:
-        raise AppException("Invalid or expired reset link.")
+        raise ValidationError("Invalid or expired reset link.")
 
 
 def reset_password(token: str, new_password: str, db: Session) -> None:
@@ -335,12 +336,12 @@ def reset_password(token: str, new_password: str, db: Session) -> None:
     Apply a new password using a valid reset token.
 
     Raises:
-        AppException (400): token invalid or expired
+        ValidationError (422): token invalid or expired
         DatabaseError (500): password update failed
     """
     token_record = get_valid_token(token, db)
     if not token_record:
-        raise AppException("Invalid or expired reset link. Please request a new one.")
+        raise ValidationError("Invalid or expired reset link. Please request a new one.")
 
     hashed_pwd = hash_password(new_password)
     updated = update_user(str(token_record.user_id), {"hashed_password": hashed_pwd}, db)

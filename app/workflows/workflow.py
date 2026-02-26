@@ -126,7 +126,7 @@ class ChatWorkflow(Workflow):
 
                 user_id = get_current_user_id()
 
-                if not user_id or user_id == "None":
+                if not user_id:
                     raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
 
                 # Conversation management (create new or validate existing)
@@ -190,7 +190,7 @@ class ChatWorkflow(Workflow):
         db = await ctx.store.get("db")
         user_id = get_current_user_id()
 
-        if not user_id or user_id == "None":
+        if not user_id:
             raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
 
         # 1. Conversation management

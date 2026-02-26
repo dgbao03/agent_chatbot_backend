@@ -44,7 +44,7 @@ Register a new account with email and password.
 Cookie set: `refresh_token=<token>; HttpOnly; Path=/auth`
 
 **Errors:**
-- `400` — Email already registered
+- `422` — Email already registered
 
 ---
 

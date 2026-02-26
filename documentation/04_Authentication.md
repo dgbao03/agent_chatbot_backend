@@ -87,7 +87,7 @@ Both tokens share the same payload structure but use **separate secret keys** an
          │
          ▼
   Check if email already exists
-         │  [exists] → 400 Email already registered
+         │  [exists] → 422 Email already registered
          │
          ▼
   hash_password(password)   ← bcrypt with auto-generated salt
@@ -322,7 +322,7 @@ Only **refresh tokens** are blacklisted. Access tokens are short-lived (30 min) 
          │
          ▼
   get_valid_token(token)
-         │  [invalid] → 400 Invalid or expired reset link
+         │  [invalid] → 422 Invalid or expired reset link
          ▼
   hash_password(new_password)
   update_user(user_id, { hashed_password })
