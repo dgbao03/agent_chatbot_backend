@@ -76,8 +76,6 @@ def register(email: str, password: str, name: Optional[str], db: Session) -> dic
     }
 
     new_user = create_user(user_data, db)
-    if not new_user:
-        raise DatabaseError("Failed to create user")
 
     access_token = create_access_token(str(new_user.id))
     refresh_token = create_refresh_token(str(new_user.id))

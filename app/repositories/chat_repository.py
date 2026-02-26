@@ -5,6 +5,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 from app.models import Message, Conversation
 from app.config.types import Message as MessageDict
+from app.exceptions import DatabaseError
 from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
@@ -63,10 +64,10 @@ def load_chat_history(conversation_id: str, db: Session) -> List[MessageDict]:
             )
         
         return result
-        
-    except Exception:
+
+    except Exception as e:
         logger.exception("load_chat_history_failed")
-        return []
+        raise DatabaseError(f"Failed to load chat history: {e}") from e
 
 
 def load_all_messages_for_conversation(
@@ -117,9 +118,9 @@ def load_all_messages_for_conversation(
                 "created_at": msg.created_at.isoformat() if msg.created_at else None,
             })
         return result
-    except Exception:
+    except Exception as e:
         logger.exception("load_all_messages_failed")
-        return []
+        raise DatabaseError(f"Failed to load messages: {e}") from e
 
 
 def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
@@ -160,8 +161,8 @@ def save_message(message: MessageDict, db: Session) -> Optional[MessageDict]:
             "created_at": new_message.created_at.isoformat() if new_message.created_at else None,
         }
         
-    except Exception:
+    except Exception as e:
         logger.exception("save_message_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to save message: {e}") from e
 

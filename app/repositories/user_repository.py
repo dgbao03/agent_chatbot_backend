@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models import User
+from app.exceptions import DatabaseError
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,9 +25,9 @@ def get_user_by_email(email: str, db: Session) -> Optional[User]:
     try:
         user = db.query(User).filter(User.email == email).first()
         return user
-    except Exception:
+    except Exception as e:
         logger.exception("get_user_by_email_failed")
-        return None
+        raise DatabaseError(f"Failed to get user by email: {e}") from e
 
 
 def get_user_by_id(user_id: str, db: Session) -> Optional[User]:
@@ -43,9 +44,9 @@ def get_user_by_id(user_id: str, db: Session) -> Optional[User]:
     try:
         user = db.query(User).filter(User.id == user_id).first()
         return user
-    except Exception:
+    except Exception as e:
         logger.exception("get_user_by_id_failed")
-        return None
+        raise DatabaseError(f"Failed to get user by id: {e}") from e
 
 
 def create_user(user_data: Dict[str, Any], db: Session) -> Optional[User]:
@@ -65,10 +66,10 @@ def create_user(user_data: Dict[str, Any], db: Session) -> Optional[User]:
         db.commit()
         db.refresh(new_user)
         return new_user
-    except Exception:
+    except Exception as e:
         logger.exception("create_user_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to create user: {e}") from e
 
 
 def update_user(user_id: str, update_data: Dict[str, Any], db: Session) -> Optional[User]:
@@ -100,7 +101,7 @@ def update_user(user_id: str, update_data: Dict[str, Any], db: Session) -> Optio
         db.commit()
         db.refresh(user)
         return user
-    except Exception:
+    except Exception as e:
         logger.exception("update_user_failed")
         db.rollback()
-        return None
+        raise DatabaseError(f"Failed to update user: {e}") from e

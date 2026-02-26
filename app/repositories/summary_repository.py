@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.models import ConversationSummary, Message, Conversation
 from app.config.types import SummaryDict
+from app.exceptions import DatabaseError
 from app.auth.context import get_current_user_id
 from app.logging import get_logger
 
@@ -50,9 +51,9 @@ def load_summary(conversation_id: str, db: Session) -> SummaryDict:
             "summary_content": summary.summary_content or "",
         }
         
-    except Exception:
+    except Exception as e:
         logger.exception("load_summary_failed")
-        return {"summary_content": ""}
+        raise DatabaseError(f"Failed to load summary: {e}") from e
 
 
 def save_summary(conversation_id: str, summary_content: str, db: Session) -> bool:
@@ -81,10 +82,10 @@ def save_summary(conversation_id: str, summary_content: str, db: Session) -> boo
         db.execute(stmt)
         db.commit()
         return True
-    except Exception:
+    except Exception as e:
         logger.exception("save_summary_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to save summary: {e}") from e
 
 
 def mark_messages_as_summarized(message_ids: List[str], db: Session) -> bool:
@@ -113,8 +114,8 @@ def mark_messages_as_summarized(message_ids: List[str], db: Session) -> bool:
         db.commit()
         return True
         
-    except Exception:
+    except Exception as e:
         logger.exception("mark_messages_as_summarized_failed")
         db.rollback()
-        return False
+        raise DatabaseError(f"Failed to mark messages as summarized: {e}") from e
 

@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 async def detect_presentation_intent(
     user_input: str,
     conversation_id: str,
+    user_id: str,
     llm,
     db
 ) -> Tuple[str, Optional[str], Optional[int]]:
@@ -40,7 +41,7 @@ async def detect_presentation_intent(
     try:
         # Get presentations list for this conversation
         presentations = list_presentations(conversation_id, db)
-        active_id = get_active_presentation(conversation_id, db)
+        active_id = get_active_presentation(conversation_id, db, user_id=user_id)
         
         # Build context
         if not presentations:

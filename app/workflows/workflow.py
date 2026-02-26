@@ -380,6 +380,7 @@ class ChatWorkflow(Workflow):
         """Slide generation step."""
         step_start = time.perf_counter()
         conversation_id = await ctx.store.get("conversation_id")
+        user_id = await ctx.store.get("user_id")
         db = await ctx.store.get("db")
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
@@ -389,7 +390,7 @@ class ChatWorkflow(Workflow):
         try:
             intent_start = time.perf_counter()
             action, target_presentation_id, target_page_number = await detect_presentation_intent(
-                ev.user_input, conversation_id, llm, db
+                ev.user_input, conversation_id, user_id, llm, db
             )
             logger.info(
                 "presentation_intent_detected",
