@@ -6,6 +6,7 @@ LLM calls and event routing, not string-assembly details.
 """
 from typing import List, Optional, Tuple
 
+from sqlalchemy.orm import Session
 from llama_index.core.llms import ChatMessage
 
 from app.config.prompts import (
@@ -23,7 +24,7 @@ def build_chat_context(
     user_id: str,
     conversation_id: str,
     history: List[ChatMessage],
-    db,
+    db: Session,
 ) -> str:
     """
     Assemble the system_content string for the route_and_answer workflow step.
@@ -79,7 +80,7 @@ def build_slide_context(
     previous_pages: Optional[List[PageContent]],
     total_pages: Optional[int],
     target_page_number: Optional[int],
-    db,
+    db: Session,
 ) -> Tuple[str, Optional[int]]:
     """
     Assemble the system_content string for the generate_slide workflow step.

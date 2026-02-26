@@ -13,18 +13,18 @@ from llama_index.core.workflow.events import Event
 from app.config.pydantic_outputs import RouterOutput, SlideOutput, SecurityOutput
 from app.config.types import Presentation
 from app.config.prompts import SECURITY_CHECK_PROMPT, ERROR_GENERAL
-from app.repositories.presentation_repository import (
-    load_presentation,
-    create_presentation,
-    update_presentation,
-    set_active_presentation,
-)
 from app.utils.helpers import save_error_response
 from app.tools import registry
 from app.exceptions import AccessDeniedError, ValidationError, DatabaseError
 from app.auth.context import get_current_user_id, get_current_db_session
 from app.services.conversation_service import get_or_create_conversation
-from app.services.presentation_service import detect_presentation_intent
+from app.services.presentation_service import (
+    detect_presentation_intent,
+    get_presentation,
+    save_new_presentation,
+    save_updated_presentation,
+    activate_presentation,
+)
 from app.services import memory_service, context_service, message_service
 from app.workflows.memory_manager import process_memory_truncation
 from app.config.llm import get_llm, get_security_llm
@@ -416,7 +416,7 @@ class ChatWorkflow(Workflow):
         previous_pages = None
         total_pages = None
         if target_presentation_id:
-            presentation_data = load_presentation(target_presentation_id, db)
+            presentation_data = get_presentation(target_presentation_id, db)
             if presentation_data:
                 previous_pages = presentation_data["pages"]
                 total_pages = presentation_data["total_pages"]
@@ -495,14 +495,12 @@ class ChatWorkflow(Workflow):
                     "total_pages": slide_output.total_pages,
                     "version": 1,
                 }
-                saved_presentation = create_presentation(
+                saved_presentation = save_new_presentation(
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
-                    db=db
+                    db=db,
                 )
-                if not saved_presentation:
-                    raise DatabaseError("Failed to create presentation")
                 presentation_id = saved_presentation["id"]
                 logger.info(
                     "presentation_created",
@@ -520,16 +518,14 @@ class ChatWorkflow(Workflow):
                     "total_pages": slide_output.total_pages,
                     "version": 1,
                 }
-                updated_presentation = update_presentation(
+                updated_presentation = save_updated_presentation(
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
-                    db=db
+                    db=db,
                 )
-                if not updated_presentation:
-                    raise DatabaseError("Failed to update presentation")
                 presentation_id = updated_presentation["id"]
-                set_active_presentation(conversation_id, presentation_id, db)
+                activate_presentation(conversation_id, presentation_id, db)
                 logger.info(
                     "presentation_updated",
                     presentation_id=presentation_id,

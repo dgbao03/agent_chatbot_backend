@@ -299,8 +299,8 @@ async def request_password_reset(email: str, db: Session) -> None:
     """
     Send a password-reset email if the account exists with email provider.
 
-    Always returns silently (avoids email enumeration).
-    Never raises.
+    Returns silently for non-existent or non-email accounts (avoids email
+    enumeration). May raise DatabaseError if token creation fails.
     """
     user = get_user_by_email(email, db)
     if not user:
@@ -310,8 +310,6 @@ async def request_password_reset(email: str, db: Session) -> None:
         return
 
     token_str = create_reset_token(str(user.id), expires_minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES, db=db)
-    if not token_str:
-        return
 
     reset_link = f"{FRONTEND_URL}/reset-password?token={token_str}"
     await send_password_reset_email(user.email, reset_link)

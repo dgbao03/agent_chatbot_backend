@@ -2,6 +2,7 @@
 Memory service - Business logic for memory management.
 """
 from typing import List, Tuple
+from sqlalchemy.orm import Session
 from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.memory import ChatMemoryBuffer
 from app.repositories.chat_repository import load_chat_history
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 llm = get_summary_llm()
 
 
-def load_conversation_memory(conversation_id: str, db) -> ChatMemoryBuffer:
+def load_conversation_memory(conversation_id: str, db: Session) -> ChatMemoryBuffer:
     """
     Load conversation history from DB and initialise a ChatMemoryBuffer.
 
@@ -137,7 +138,7 @@ def split_messages_for_summary(
     return messages_to_summarize, messages_to_keep
 
 
-async def create_summary(conversation_id: str, messages: List[ChatMessage], db) -> str:
+async def create_summary(conversation_id: str, messages: List[ChatMessage], db: Session) -> str:
     """
     Create summary from messages, combining with old summary if exists.
 

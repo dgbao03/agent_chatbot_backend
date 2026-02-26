@@ -1,16 +1,22 @@
 """
 Presentation service - Business logic for presentation management.
 """
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Any
+from sqlalchemy.orm import Session
 from llama_index.core.llms import ChatMessage, MessageRole
-from app.config.pydantic_outputs import SlideIntentOutput
+from app.config.pydantic_outputs import SlideIntentOutput, PageContent
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
-from app.exceptions import LLMError, NotFoundError
+from app.config.types import Presentation as PresentationDict
+from app.exceptions import LLMError, NotFoundError, DatabaseError
 from app.config.settings import LLM_MODEL
 from app.logging import get_logger
 from app.repositories.presentation_repository import (
     list_presentations,
     get_active_presentation,
+    load_presentation as repo_load_presentation,
+    create_presentation as repo_create_presentation,
+    update_presentation as repo_update_presentation,
+    set_active_presentation as repo_set_active_presentation,
     get_presentation_versions as repo_get_presentation_versions,
     get_version_content as repo_get_version_content,
 )
@@ -22,8 +28,8 @@ async def detect_presentation_intent(
     user_input: str,
     conversation_id: str,
     user_id: str,
-    llm,
-    db
+    llm: Any,
+    db: Session,
 ) -> Tuple[str, Optional[str], Optional[int]]:
     """
     Detect user intent for presentation actions.
@@ -142,7 +148,7 @@ def get_presentation_versions(presentation_id: str, user_id: str, db) -> list:
     return versions
 
 
-def get_version_content(presentation_id: str, version: int, user_id: str, db) -> dict:
+def get_version_content(presentation_id: str, version: int, user_id: str, db: Session) -> dict:
     """
     Get pages content of a specific presentation version.
 
@@ -154,4 +160,75 @@ def get_version_content(presentation_id: str, version: int, user_id: str, db) ->
     if data is None:
         raise NotFoundError("Presentation version", str(version))
     return data
+
+
+# ---------------------------------------------------------------------------
+# Write operations — used by workflow
+# ---------------------------------------------------------------------------
+
+def get_presentation(presentation_id: str, db: Session) -> Optional[dict]:
+    """
+    Load a presentation with its pages by ID.
+
+    Returns:
+        PresentationWithPages dict, or None if not found
+        DatabaseError: On DB failure (propagated from repository)
+    """
+    return repo_load_presentation(presentation_id, db)
+
+
+def save_new_presentation(
+    presentation: PresentationDict,
+    pages: List[PageContent],
+    user_request: str,
+    db: Session,
+) -> dict:
+    """
+    Create a new presentation and return the saved record.
+
+    Raises:
+        DatabaseError: If creation fails
+    """
+    saved = repo_create_presentation(
+        presentation=presentation,
+        pages=pages,
+        user_request=user_request,
+        db=db,
+    )
+    if not saved:
+        raise DatabaseError("Failed to create presentation")
+    return saved
+
+
+def save_updated_presentation(
+    presentation: PresentationDict,
+    pages: List[PageContent],
+    user_request: str,
+    db: Session,
+) -> dict:
+    """
+    Update an existing presentation and return the updated record.
+
+    Raises:
+        DatabaseError: If update fails
+    """
+    updated = repo_update_presentation(
+        presentation=presentation,
+        pages=pages,
+        user_request=user_request,
+        db=db,
+    )
+    if not updated:
+        raise DatabaseError("Failed to update presentation")
+    return updated
+
+
+def activate_presentation(conversation_id: str, presentation_id: str, db: Session) -> None:
+    """
+    Set a presentation as the active one for a conversation.
+
+    Raises:
+        DatabaseError: On DB failure (propagated from repository)
+    """
+    repo_set_active_presentation(conversation_id, presentation_id, db)
 

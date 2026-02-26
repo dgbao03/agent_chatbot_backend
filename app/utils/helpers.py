@@ -1,7 +1,8 @@
 """
 Pure utility functions (no domain dependencies).
 """
-from typing import Optional, List, Any
+from typing import Optional, List
+from sqlalchemy.orm import Session
 from app.config.types import UserFact, Message
 from app.repositories.chat_repository import save_message
 
@@ -26,11 +27,11 @@ def find_fact_by_key(facts: List[UserFact], key: str) -> Optional[UserFact]:
 
 async def save_error_response(
     conversation_id: str,
-    db: Any,
+    db: Session,
     content: str,
     result_dict: dict,
-    memory: Optional[Any] = None,
-    ctx: Optional[Any] = None,
+    memory: Optional[object] = None,
+    ctx: Optional[object] = None,
 ) -> dict:
     """
     Save assistant error message to DB. Optionally add to memory and update ctx.store.
