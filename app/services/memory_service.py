@@ -79,7 +79,6 @@ def split_messages_for_summary(
         return messages, []
     
     total_count = len(messages)
-    keep_count = max(1, int(total_count * settings.MEMORY_KEEP_RATIO))  # minimum 1 message
     
     # Find the last user message in all messages
     last_user_idx = -1
