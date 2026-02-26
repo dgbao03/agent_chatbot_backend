@@ -96,6 +96,19 @@ All environment variables with their defaults and types:
 | `LOG_FILE_MAX_BYTES` | `52428800` (50MB) | int | Max size before log rotation |
 | `LOG_FILE_BACKUP_COUNT` | `10` | int | Number of rotated log files to keep |
 
+### Memory
+
+| Variable | Default | Type | Description |
+|----------|---------|------|-------------|
+| `MEMORY_TOKEN_LIMIT` | `2000` | int | Max tokens for `ChatMemoryBuffer` short-term memory |
+| `MEMORY_KEEP_RATIO` | `0.2` | float | Fraction of messages to keep (not summarize) during memory truncation |
+
+### Password Reset
+
+| Variable | Default | Type | Description |
+|----------|---------|------|-------------|
+| `PASSWORD_RESET_EXPIRE_MINUTES` | `15` | int | Password reset token lifetime in minutes |
+
 ---
 
 ## 3. `app/config/llm.py` — LLM Factory

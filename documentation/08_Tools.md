@@ -74,9 +74,9 @@ The `summary` gives the LLM a quick overview of all tools at the top of the syst
   └── Stores tool in internal dict keyed by name
 
   registry.execute_tool(name, **kwargs)
-  ├── Tool not found  → return "Error: Tool '{name}' not found"
-  ├── Tool disabled   → return "Error: Tool '{name}' is disabled"
-  ├── execute() raises → return "Error executing tool '{name}': {str(e)}"
+  ├── Tool not found  → raises ValueError
+  ├── Tool disabled   → raises ValueError
+  ├── execute() raises → exception propagates up to workflow
   └── Success         → return execute() result
 
   registry.get_llama_tools()
@@ -92,7 +92,7 @@ The `summary` gives the LLM a quick overview of all tools at the top of the syst
   └── Returns stats dict: total, enabled, disabled, categories, tool metadata list
 ```
 
-**Error handling design of `execute_tool`:** All errors are caught and returned as plain strings. The method **never raises an exception** — it always returns something the LLM can read. This ensures a failing tool never crashes the tool calling loop.
+**Error handling design of `execute_tool`:** The method does **not** catch exceptions internally — all errors propagate up to the caller (workflow). The workflow's `try/except` block around the tool call catches the exception, logs `tool_call_failed` with the error details, then constructs an error string to pass back to the LLM. This ensures accurate observability: a tool failure is logged as a failure, not silently treated as success.
 
 ### 2.3. Tool Registration at Module Load
 
@@ -221,7 +221,7 @@ Tool information reaches the LLM through two separate channels simultaneously:
 
 ### 3.3. Error propagation
 
-Tools never crash the loop. All error scenarios produce a string that is fed back to the LLM as the tool result:
+Tool failures are caught and handled by the workflow — not by the registry. This separates concerns: the registry executes, the workflow handles errors and decides what to tell the LLM.
 
 ```
   User: "What is the weather in Hanoi?"
@@ -233,11 +233,15 @@ Tools never crash the loop. All error scenarios produce a string that is fed bac
   execute() raises an exception (e.g., network error)
          │
          ▼
-  execute_tool catches exception
-  → returns: "Error executing tool 'get_weather': <error details>"
+  Exception propagates out of registry.execute_tool()
          │
          ▼
-  Tool result appended to messages as TOOL role
+  workflow try/except catches it
+  → logs: tool_call_failed (tool_name, error_type, error_message, duration_ms)
+  → constructs: "Error executing tool get_weather: <error details>"
+         │
+         ▼
+  Error string appended to messages as TOOL role
          │
          ▼
   LLM called again with the error result
@@ -245,7 +249,7 @@ Tools never crash the loop. All error scenarios produce a string that is fed bac
     (e.g., "I'm sorry, I couldn't fetch the weather right now.")
 ```
 
-The LLM receives the error string as data and formulates an appropriate response — the user gets a helpful message instead of an HTTP 500.
+The LLM still receives an error string and can respond gracefully — the user gets a helpful message. And because the exception propagates to the workflow before being converted to a string, the failure is logged accurately as `tool_call_failed` rather than `tool_call_completed` with `success=True`.
 
 ### 3.4. Tool results are ephemeral
 
@@ -337,11 +341,11 @@ def execute(self, key: str, value: str) -> str:
 
 This keeps the LLM-facing function signature clean (`key` and `value` only) while tools internally have access to the full request context.
 
-### All errors return strings — never raise
+### Tool failures are handled by the workflow — not the registry
 
-`registry.execute_tool()` wraps every call in try/except and returns error strings. Individual tool implementations also catch their own exceptions and return descriptive error strings. This design:
-- Prevents any single tool failure from crashing the entire request
-- Gives the LLM useful error information to pass back to the user
+`registry.execute_tool()` does not wrap calls in try/except — exceptions propagate naturally to the workflow's tool calling loop. The workflow catches the exception, logs the failure with full context (`tool_name`, `error_type`, `error_message`, `duration_ms`), and then converts the error into a string that is passed back to the LLM as a TOOL role message. This design:
+- Ensures tool failures are accurately logged as failures (not silently as `success=True`)
+- Keeps the LLM-facing behavior unchanged — the LLM still receives an error string and can respond gracefully
 - Keeps the tool calling loop running regardless of individual tool outcomes
 
 ### Tool results are not persisted

@@ -79,12 +79,12 @@ agent_chat_backend/
     │
     ├── services/                       # Business logic layer
     │   ├── auth_service.py             # register, login, token refresh, OAuth callback, password reset
-    │   ├── chat_service.py             # validate_conversation_access, get_or_create_conversation
+    │   ├── conversation_service.py     # validate_conversation_access, get_or_create_conversation, list/get/update/delete CRUD
     │   ├── context_service.py          # build_chat_context, build_slide_context (LLM system-prompt assembly)
     │   ├── email_service.py            # Send password reset email via SMTP
     │   ├── memory_service.py           # load_conversation_memory, split_messages_for_summary, create_summary
     │   ├── message_service.py          # save_user_message, save_assistant_message
-    │   └── presentation_service.py     # detect_presentation_intent (CREATE_NEW / EDIT)
+    │   └── presentation_service.py     # detect_presentation_intent (CREATE_NEW / EDIT), get_presentation_versions, get_version_content
     │
     ├── tasks/
     │   └── cleanup.py                  # APScheduler — purge expired tokens every 24h
@@ -278,7 +278,7 @@ For the chat workflow specifically, ownership is checked twice — once at the r
   ChatWorkflow.route_and_answer()
             │
             ▼
-  chat_service.get_or_create_conversation(user_id, conversation_id, ...)
+  conversation_service.get_or_create_conversation(user_id, conversation_id, ...)
   ← Layer 2: if conversation_id is provided, calls validate_conversation_access()
   ← raises NotFoundError (404) if the conversation doesn't exist or isn't owned
             │
