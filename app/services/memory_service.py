@@ -3,6 +3,8 @@ Memory service - Business logic for memory management.
 """
 from typing import List, Tuple
 from llama_index.core.llms import ChatMessage, MessageRole
+from llama_index.core.memory import ChatMemoryBuffer
+from app.repositories.chat_repository import load_chat_history
 from app.repositories.summary_repository import load_summary, save_summary
 from app.utils.formatters import format_messages_for_summary
 from app.config.prompts import SUMMARY_INITIAL_PROMPT, SUMMARY_UPDATE_PROMPT
@@ -12,6 +14,39 @@ from app.logging import get_logger
 logger = get_logger(__name__)
 
 llm = get_summary_llm()
+
+
+def load_conversation_memory(conversation_id: str, db) -> ChatMemoryBuffer:
+    """
+    Load conversation history from DB and initialise a ChatMemoryBuffer.
+
+    Fetches messages that are still in working memory, populates them into
+    a 2 000-token ChatMemoryBuffer, and returns it ready for use by the
+    workflow steps.
+
+    Args:
+        conversation_id: UUID of the conversation
+        db: Database session
+
+    Returns:
+        ChatMemoryBuffer populated with the conversation's working-memory messages
+    """
+    chat_history = load_chat_history(conversation_id, db)
+    memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
+
+    for chat in chat_history:
+        memory.put(ChatMessage(
+            role=chat["role"],
+            content=chat["content"],
+            additional_kwargs={"message_id": chat.get("id")},
+        ))
+
+    logger.debug(
+        "chat_history_loaded",
+        conversation_id=conversation_id,
+        message_count=len(chat_history),
+    )
+    return memory
 
 
 def split_messages_for_summary(

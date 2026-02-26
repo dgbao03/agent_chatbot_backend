@@ -78,9 +78,12 @@ agent_chat_backend/
     │   └── user_fact.py
     │
     ├── services/                       # Business logic layer
-    │   ├── chat_service.py             # validate_conversation_access
+    │   ├── auth_service.py             # register, login, token refresh, OAuth callback, password reset
+    │   ├── chat_service.py             # validate_conversation_access, get_or_create_conversation
+    │   ├── context_service.py          # build_chat_context, build_slide_context (LLM system-prompt assembly)
     │   ├── email_service.py            # Send password reset email via SMTP
-    │   ├── memory_service.py           # Split messages for summary, create LLM summary
+    │   ├── memory_service.py           # load_conversation_memory, split_messages_for_summary, create_summary
+    │   ├── message_service.py          # save_user_message, save_assistant_message
     │   └── presentation_service.py     # detect_presentation_intent (CREATE_NEW / EDIT)
     │
     ├── tasks/
@@ -275,9 +278,9 @@ For the chat workflow specifically, ownership is checked twice — once at the r
   ChatWorkflow.route_and_answer()
             │
             ▼
-  validate_conversation_access(user_id, conversation_id, db)
-  ← Layer 2: explicit check that the conversation belongs to this user
-  ← raises NotFoundError (404) if ownership fails
+  chat_service.get_or_create_conversation(user_id, conversation_id, ...)
+  ← Layer 2: if conversation_id is provided, calls validate_conversation_access()
+  ← raises NotFoundError (404) if the conversation doesn't exist or isn't owned
             │
             ▼
   Continue processing
@@ -381,13 +384,20 @@ The server uses FastAPI's `lifespan` context manager to run startup and shutdown
   stop_scheduler()         ← graceful shutdown of background scheduler
 ```
 
-## 10. Global Exception Handler
+## 10. Global Exception Handlers
 
-Any unhandled exception that escapes a router handler is caught by the global exception handler registered in `main.py`. It:
+Two exception handlers are registered in `main.py`, each targeting a different class of error:
+
+**`AppException` handler** — catches any `AppException` subclass raised by service functions:
+- Converts it to a JSON response using `exc.status_code` and `{"detail": exc.message}`
+- Ensures that service-layer errors (auth failures, not-found, validation) reach the client with the correct HTTP status code and a safe, human-readable message
+- Exception: the workflow router has its own `try/except AppException` block and returns `{"status": "error", "error": "..."}` — it never reaches this global handler
+
+**Unhandled `Exception` handler** — catches any exception not already handled:
 - Logs the full stack trace with `error_type`, `error_message`, HTTP method, and path
-- Returns a generic `500 Internal Server Error` response to the client without leaking internal details
+- Returns a generic `500 Internal Server Error` to the client without leaking internal details
 
-Application-level exceptions (`AppException` and its subclasses) are handled at the router level before reaching the global handler. See [11_Exception.md](11_Exception.md) for details.
+See [11_Exception.md](11_Exception.md) for the full exception handling architecture and the two-pattern approach (REST vs Workflow).
 
 ## 11. Logging
 
