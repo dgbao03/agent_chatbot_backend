@@ -6,6 +6,14 @@ Built around a multi-step LLM workflow that handles security, intent routing, to
 
 ---
 
+## Frontend
+
+> **Frontend Repository:** [agent_chat_application_frontend](https://github.com/dgbao03/agent_chat_application_frontend)
+
+A companion React-based frontend is available to visually interact with this backend. It provides a full chat UI, conversation management, and an inline AI slide viewer — making it easy to see how the entire system works end-to-end without needing to call the API manually.
+
+---
+
 ## Tech Stack
 
 | Category | Technology |
