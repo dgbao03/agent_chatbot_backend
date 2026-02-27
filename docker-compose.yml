@@ -1,0 +1,87 @@
+services:
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: agent_chat_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # FastAPI Backend
+  # ─────────────────────────────────────────────
+  backend:
+    build: .
+    ports:
+      - "4040:4040"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Override DATABASE_URL: replace localhost with service name "db"
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/agent_chat_db
+      # Write logs to file so Promtail can read them
+      LOG_OUTPUT: both
+      LOG_FILE_PATH: logs/app.log
+    volumes:
+      # Shared log volume: backend writes, Promtail reads
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Loki — Log aggregation storage
+  # ─────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "3110:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Promtail — reads logs/app.log → pushes to Loki
+  # ─────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - ./logs:/logs:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Grafana — log dashboard
+  # ─────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  postgres_data:    # Docker-managed — persists PostgreSQL data across restarts
+  grafana_data:     # Docker-managed — persists Grafana dashboards and config

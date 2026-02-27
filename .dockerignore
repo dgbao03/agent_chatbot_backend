@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+
+# Secrets
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Git
+.git/
+.gitignore
+
+# Runtime files
+logs/
+
+# Development docs (not needed in image)
+documentation/
+
+# IDE
+.cursor/
+.vscode/

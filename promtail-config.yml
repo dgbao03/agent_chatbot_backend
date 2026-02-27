@@ -6,7 +6,7 @@ positions:
   filename: /tmp/promtail-positions.yaml
 
 clients:
-  - url: http://localhost:3100/loki/api/v1/push
+  - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
   - job_name: agent-chat-backend
@@ -17,7 +17,7 @@ scrape_configs:
           job: agent-chat-backend
           app: agent-chat
           env: development
-          __path__: /Users/baodo/Documents/Code/LlamaIndex_Code/AgentChatApplication/agent_chat_backend/logs/app.log
+          __path__: /logs/app.log
 
     pipeline_stages:
       - json:
