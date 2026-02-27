@@ -17,6 +17,9 @@ newspaper4k
 lxml
 lxml_html_clean
 
+# Database Migration
+alembic
+
 # Backend Development
 fastapi
 sqlalchemy
