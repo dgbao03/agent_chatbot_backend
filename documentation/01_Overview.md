@@ -57,3 +57,5 @@
 - **Background Tasks** — APScheduler (outdated token cleanup every 24h)
 
 - **Logging** — structlog (structured JSON logging), Promtail (log collector), Loki (log storage), Grafana (log visualizer)
+
+- **Deployment** — Docker, Docker Compose (backend + PostgreSQL + Promtail + Loki + Grafana)

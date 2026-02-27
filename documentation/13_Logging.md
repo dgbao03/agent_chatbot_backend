@@ -350,7 +350,7 @@ These libraries still log `WARNING` and above — errors and exceptions from the
   ├── tails app.log continuously
   ├── parses JSON fields: level, event, logger, request_id, user_id, timestamp
   ├── adds labels: job=agent-chat-backend, app=agent-chat, env=development
-  └── pushes log streams to Loki at http://localhost:3100
+  └── pushes log streams to Loki
          │
          ▼
   Loki  (port 3100)
@@ -364,6 +364,17 @@ These libraries still log `WARNING` and above — errors and exceptions from the
   └── dashboards, alerts
 ```
 
+**Local vs Docker differences:**
+
+| Setting | Local | Docker (via docker-compose) |
+|---------|-------|-----------------------------|
+| Log file path (`__path__`) | Absolute path on host machine | `/logs/app.log` (mounted volume) |
+| Loki push URL | `http://localhost:3100` | `http://loki:3100` (service name) |
+| Loki port (host) | `3100` | `3100` (or alternate if port conflict) |
+| Grafana port (host) | `3000` | `3000` (or alternate if port conflict) |
+
+In Docker Compose, services communicate via internal DNS using service names (`loki`, `grafana`, `backend`) — never `localhost`.
+
 ### 9.2. `promtail-config.yml` explained
 
 ```yaml
@@ -374,7 +385,8 @@ scrape_configs:
           job: agent-chat-backend     # ← identifies the log source in Loki
           app: agent-chat
           env: development
-          __path__: .../logs/app.log  # ← file to tail
+          __path__: /logs/app.log     # ← Docker: mounted volume path
+                                      #   Local: absolute path on host machine
 
     pipeline_stages:
       - json:                         # parse JSON fields from each log line

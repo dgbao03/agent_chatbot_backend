@@ -17,6 +17,7 @@ Built around a multi-step LLM workflow that handles security, intent routing, to
 | Email | aiosmtplib (async SMTP) |
 | Background Tasks | APScheduler |
 | Logging | structlog → Promtail → Loki → Grafana |
+| Deployment | Docker, Docker Compose |
 
 ---
 
@@ -170,165 +171,123 @@ What the LLM "sees" differs per workflow step:
 
 ## Getting Started
 
-Since the system is not containerized with Docker, users need to perform some manual setup and configuration before running the server.
+The system runs entirely via **Docker Compose**
 
 ### Prerequisites
 
-- Python 3.11+
-- PostgreSQL 14+
-- OpenAI API key
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
 ---
 
-### 1. Clone & create virtual environment
+### 1. Clone the repository
 
 ```bash
 git clone <repo-url>
 cd agent_chat_backend
-
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
 ```
-
-### 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Set up the database
-
-**3.1. Create a PostgreSQL database**
-
-Connect to PostgreSQL and create a new database:
-
-```bash
-psql -U postgres
-```
-
-```sql
-CREATE DATABASE agent_chat_db;
-\q
-```
-
-**3.2. Run database migrations**
-
-Make sure you are in the `agent_chat_backend/` directory, then apply all migrations to create the required tables:
-
-```bash
-# From the agent_chat_backend/ directory:
-alembic upgrade head
-```
-
-This automatically creates all required tables (`users`, `conversations`, `messages`, `presentations`, etc.) by applying the migration files in `alembic/versions/` in order.
-
-> `schema.sql` is kept in the project as a legacy reference but is no longer used for setup.
 
 ---
 
-### 4. Configure environment variables
+### 2. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in the required values:
+Open `.env` and fill in the required values.
 
-Generate secure secret keys:
+Generate secure random secret keys:
 
 ```bash
-openssl rand -hex 32    # run twice — once for each secret key
+openssl rand -hex 32    # run twice — once for JWT_SECRET_KEY, once for REFRESH_SECRET_KEY
 ```
 
 ---
 
-### 5. Run the server
+### 3. Start all services
 
 ```bash
-python main.py
+docker compose up -d
 ```
 
-Server running at: `http://localhost:4040`
+This starts 5 services in the correct order:
+
+| Service | Description |
+|---------|-------------|
+| `db` | PostgreSQL 16 (internal only) |
+| `backend` | FastAPI server — runs `alembic upgrade head` then starts uvicorn |
+| `loki` | Log aggregation storage |
+| `promtail` | Reads `logs/app.log` → pushes to Loki |
+| `grafana` | Log visualization dashboard |
+
+Verify all containers are running:
+
+```bash
+docker compose ps
+```
 
 ---
 
-### 6. Logging: Promtail → Loki → Grafana (Optional)
-
-This stack ships structured JSON logs from the application to Grafana for visualization.
-
-**6.1. Install**
-
-macOS (Homebrew):
+### 4. Verify
 
 ```bash
-brew install loki
-brew install promtail
-brew install grafana
+curl http://localhost:4040/health
+# → {"status": "ok", "version": "2.0.0"}
 ```
 
-Linux — download binaries from:
-- Loki & Promtail: https://github.com/grafana/loki/releases
-- Grafana: https://grafana.com/grafana/download
+---
 
-**6.2. Configure `.env` for file logging**
+### 5. Logging Infrastructure
 
-```env
-LOG_FORMAT=json
-LOG_OUTPUT=both
-LOG_FILE_PATH=logs/app.log
-```
+All logging services are included in Docker Compose — no additional installation needed.
 
-**6.3. Update `promtail-config.yml`**
+**Service ports:**
 
-Open `promtail-config.yml` and update `__path__` to match your local path to `logs/app.log`:
+| Service | Host Port | URL |
+|---------|-----------|-----|
+| Backend API | `4040` | http://localhost:4040 |
+| Grafana | `3000` | http://localhost:3000 |
+| Loki | `3100` | http://localhost:3100 |
 
-```yaml
-__path__: /your/local/path/agent_chat_backend/logs/app.log
-```
+**Connect Grafana to Loki (first time only):**
 
-**6.4. Start services in order**
-
-Step 1 — Start **Loki** (log aggregation, port 3100):
-
-```bash
-# macOS
-loki --config.file=$(brew --prefix)/etc/loki/config.yml
-
-# Linux
-loki -config.file=/etc/loki/config.yml
-```
-
-Step 2 — Start **Promtail** (reads `logs/app.log` → pushes to Loki):
-
-```bash
-promtail -config.file=/path/to/agent_chat_backend/promtail-config.yml
-```
-
-Step 3 — Start **Grafana** (dashboard, port 3000):
-
-```bash
-# macOS
-brew services start grafana
-
-# Linux
-grafana-server
-```
-
-**6.5. Connect Grafana to Loki**
-
-1. Open `http://localhost:3000` (default credentials: `admin` / `admin`)
+1. Open **http://localhost:3000**
 2. Go to **Connections → Add new data source → Loki**
-3. Set URL to `http://localhost:3100`
+3. Set URL to `http://loki:3100`
 4. Click **Save & Test**
 
-**6.6. Query logs**
+**Example LogQL queries:**
 
-Go to **Explore**, select the Loki datasource, and query:
+```logql
+# Trace a single request end-to-end by request_id
+{job="agent-chat-backend"} |= `21fbdae51ee2`
 
+# All errors
+{job="agent-chat-backend"} | json | level="error"
+
+# All workflow errors for a specific user
+{job="agent-chat-backend"} | json | event="workflow_error"
+
+# Filter by endpoint
+{job="agent-chat-backend"} | json | path="/workflows/chat/run"
 ```
-{job="agent-chat-backend"}                          # all logs
-{job="agent-chat-backend", level="error"}           # errors only
-{job="agent-chat-backend"} | json | event="..."     # filter by event
+
+---
+
+### 6. Common Docker commands
+
+```bash
+# View live logs from the backend
+docker compose logs -f backend
+
+# Stop all services
+docker compose down
+
+# Rebuild and restart after code changes
+docker compose up -d --build
+
+# Restart a single service
+docker compose restart backend
 ```
 
 ---
