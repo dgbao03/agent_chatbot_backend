@@ -1,4 +1,4 @@
-# Agent Chat Backend
+# Agent Chat Application (Backend Server)
 
 **FastAPI + LlamaIndex backend for an AI-powered chat application with slide presentation generation.**
 
@@ -102,7 +102,7 @@ Generates or edits HTML slide presentations (1280×720px, 3–7 pages).
 
 The system maintains three layers of memory per user:
 
-### Short-term — `ChatMemoryBuffer`
+### Short-term — Recent Conversation
 
 - Holds the recent conversation turns in LlamaIndex's `ChatMemoryBuffer`
 - Hard limit: **2000 tokens**
