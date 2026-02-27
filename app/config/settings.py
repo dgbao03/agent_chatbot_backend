@@ -74,8 +74,8 @@ SMTP_USE_TLS: bool = SMTP_PORT == 465
 # Logging
 # ============================================================
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_FORMAT: str = os.getenv("LOG_FORMAT", "console")   # "console" | "json"
-LOG_OUTPUT: str = os.getenv("LOG_OUTPUT", "stdout")    # "stdout" | "file" | "both"
+LOG_FORMAT: str = os.getenv("LOG_FORMAT", "json")      # "console" | "json"
+LOG_OUTPUT: str = os.getenv("LOG_OUTPUT", "both")      # "stdout" | "file" | "both"
 LOG_FILE_PATH: str = os.getenv("LOG_FILE_PATH", "logs/app.log")
 LOG_FILE_MAX_BYTES: int = int(os.getenv("LOG_FILE_MAX_BYTES", str(50 * 1024 * 1024)))  # 50MB
 LOG_FILE_BACKUP_COUNT: int = int(os.getenv("LOG_FILE_BACKUP_COUNT", "10"))

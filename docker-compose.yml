@@ -32,12 +32,6 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    environment:
-      # Override DATABASE_URL: replace localhost with service name "db"
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/agent_chat_db
-      # Write logs to file so Promtail can read them
-      LOG_OUTPUT: both
-      LOG_FILE_PATH: logs/app.log
     volumes:
       # Shared log volume: backend writes, Promtail reads
       - ./logs:/app/logs
