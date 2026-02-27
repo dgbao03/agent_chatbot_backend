@@ -211,16 +211,18 @@ CREATE DATABASE agent_chat_db;
 \q
 ```
 
-**3.2. Run the schema**
+**3.2. Run database migrations**
 
-`schema.sql` is located in the `agent_chat_backend/` root directory. Make sure you are in that directory before running the command:
+Make sure you are in the `agent_chat_backend/` directory, then apply all migrations to create the required tables:
 
 ```bash
 # From the agent_chat_backend/ directory:
-psql -U postgres -d agent_chat_db -f schema.sql
+alembic upgrade head
 ```
 
-This creates all required tables (`users`, `conversations`, `messages`, `presentations`, etc.).
+This automatically creates all required tables (`users`, `conversations`, `messages`, `presentations`, etc.) by applying the migration files in `alembic/versions/` in order.
+
+> `schema.sql` is kept in the project as a legacy reference but is no longer used for setup.
 
 ---
 
