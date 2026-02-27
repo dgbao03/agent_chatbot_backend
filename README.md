@@ -170,7 +170,164 @@ What the LLM "sees" differs per workflow step:
 
 ## Getting Started
 
-> 🚧 This section will be updated soon.
+Since the system is not containerized with Docker, users need to perform some manual setup and configuration before running the server.
+
+### Prerequisites
+
+- Python 3.11+
+- PostgreSQL 14+
+- OpenAI API key
+
+---
+
+### 1. Clone & create virtual environment
+
+```bash
+git clone <repo-url>
+cd agent_chat_backend
+
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Set up the database
+
+**3.1. Create a PostgreSQL database**
+
+Connect to PostgreSQL and create a new database:
+
+```bash
+psql -U postgres
+```
+
+```sql
+CREATE DATABASE agent_chat_db;
+\q
+```
+
+**3.2. Run the schema**
+
+`schema.sql` is located in the `agent_chat_backend/` root directory. Make sure you are in that directory before running the command:
+
+```bash
+# From the agent_chat_backend/ directory:
+psql -U postgres -d agent_chat_db -f schema.sql
+```
+
+This creates all required tables (`users`, `conversations`, `messages`, `presentations`, etc.).
+
+---
+
+### 4. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in the required values:
+
+Generate secure secret keys:
+
+```bash
+openssl rand -hex 32    # run twice — once for each secret key
+```
+
+---
+
+### 5. Run the server
+
+```bash
+python main.py
+```
+
+Server running at: `http://localhost:4040`
+
+---
+
+### 6. Logging: Promtail → Loki → Grafana (Optional)
+
+This stack ships structured JSON logs from the application to Grafana for visualization.
+
+**6.1. Install**
+
+macOS (Homebrew):
+
+```bash
+brew install loki
+brew install promtail
+brew install grafana
+```
+
+Linux — download binaries from:
+- Loki & Promtail: https://github.com/grafana/loki/releases
+- Grafana: https://grafana.com/grafana/download
+
+**6.2. Configure `.env` for file logging**
+
+```env
+LOG_FORMAT=json
+LOG_OUTPUT=both
+LOG_FILE_PATH=logs/app.log
+```
+
+**6.3. Update `promtail-config.yml`**
+
+Open `promtail-config.yml` and update `__path__` to match your local path to `logs/app.log`:
+
+```yaml
+__path__: /your/local/path/agent_chat_backend/logs/app.log
+```
+
+**6.4. Start services in order**
+
+Step 1 — Start **Loki** (log aggregation, port 3100):
+
+```bash
+# macOS
+loki --config.file=$(brew --prefix)/etc/loki/config.yml
+
+# Linux
+loki -config.file=/etc/loki/config.yml
+```
+
+Step 2 — Start **Promtail** (reads `logs/app.log` → pushes to Loki):
+
+```bash
+promtail -config.file=/path/to/agent_chat_backend/promtail-config.yml
+```
+
+Step 3 — Start **Grafana** (dashboard, port 3000):
+
+```bash
+# macOS
+brew services start grafana
+
+# Linux
+grafana-server
+```
+
+**6.5. Connect Grafana to Loki**
+
+1. Open `http://localhost:3000` (default credentials: `admin` / `admin`)
+2. Go to **Connections → Add new data source → Loki**
+3. Set URL to `http://localhost:3100`
+4. Click **Save & Test**
+
+**6.6. Query logs**
+
+Go to **Explore**, select the Loki datasource, and query:
+
+```
+{job="agent-chat-backend"}                          # all logs
+{job="agent-chat-backend", level="error"}           # errors only
+{job="agent-chat-backend"} | json | event="..."     # filter by event
+```
 
 ---
 
