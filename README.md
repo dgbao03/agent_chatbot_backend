@@ -2,7 +2,7 @@
 
 **FastAPI + LlamaIndex backend for an AI-powered chat application with slide presentation generation.**
 
-Built around a multi-step LLM workflow that handles security, intent routing, tool calling, and HTML slide generation — all within a single agent architecture.
+Built around a multi step LLM workflow that handles security, intent routing, tool calling, and HTML slide generation, all within a single agent architecture.
 
 ---
 
