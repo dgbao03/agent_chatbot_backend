@@ -403,7 +403,7 @@ Detailed documentation for each component:
 | [05_Workflow.md](documentation/05_Workflow.md) | LlamaIndex workflow |
 | [06_Context.md](documentation/06_Context.md) | LLM context |
 | [07_Memory.md](documentation/07_Memory.md) | Short-term & long-term memory |
-| [08_Tools.md](documentation/08_Tools.md) | Tools Calling |
+| [08_Tools.md](documentation/08_Tools.md) | Tools calling |
 | [09_Conversation.md](documentation/09_Conversation.md) | Conversation lifecycle |
 | [10_Presentation.md](documentation/10_Presentation.md) | Presentation generation & versioning |
 | [11_Exception.md](documentation/11_Exception.md) | Exception hierarchy & error handling |
