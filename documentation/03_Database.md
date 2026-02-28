@@ -8,6 +8,10 @@
 
 All primary keys are UUID type, auto-generated at the database level. All timestamps use `timestamptz` (timezone-aware).
 
+### Schema Diagram
+
+![Database Schema](https://res.cloudinary.com/dw3x8orox/image/upload/v1772251178/Screenshot_2026-02-28_at_10.58.58_jneujh.png)
+
 ---
 
 ## 2. Tables Overview
