@@ -8,7 +8,7 @@ Built around a multi step LLM workflow that handles security, intent routing, to
 
 ## Frontend
 
-> **Frontend Repository:** [agent_chat_application_frontend](https://github.com/dgbao03/agent_chatbot_frontend)
+> **Frontend Repository:** [agent_chatbot_frontend](https://github.com/dgbao03/agent_chatbot_frontend)
 
 A companion React-based frontend is available to visually interact with this backend. It provides a full chat UI, conversation management, and an inline AI slide viewer, making it easy to see how the entire system works end-to-end without needing to call the API manually.
 
@@ -20,7 +20,7 @@ A companion React-based frontend is available to visually interact with this bac
 - **AI / LLM:** LlamaIndex, OpenAI API
 - **Database:** PostgreSQL, SQLAlchemy
 - **Authentication:** JWT, Google OAuth 2.0
-- **Email:** aiosmtplib (async SMTP)
+- **Email:** aiosmtplib
 - **Background Tasks:** APScheduler
 - **Logging:** structlog, Promtail, Loki, Grafana
 - **Deployment:** Docker, Docker Compose
@@ -148,6 +148,8 @@ The main conversation step. Handles both regular chat and tool-augmented respons
 
 Generates or edits HTML slide presentations (1280×720px, 3–7 pages).
 
+Version archiving happens automatically on every edit, previous versions remain accessible via `GET /api/presentations/{id}/versions/{version}`.
+
 ```
   Detect slide action (CREATE_NEW / EDIT_ACTIVE / EDIT_SPECIFIC)
          │
@@ -166,8 +168,6 @@ Generates or edits HTML slide presentations (1280×720px, 3–7 pages).
          ▼
   Update active_presentation_id on conversation
 ```
-
-- Version archiving happens automatically on every edit, previous versions remain accessible via `GET /api/presentations/{id}/versions/{version}`.
 
 ---
 
@@ -419,18 +419,18 @@ Detailed documentation for each component:
 
 | File | Topic |
 |------|-------|
-| [01_Overview.md](documentation/01_Overview.md) | Overview & key features |
-| [02_Server.md](documentation/02_Server.md) | Project structure & architecture |
-| [03_Database.md](documentation/03_Database.md) | Database schema & relationships |
+| [01_Overview.md](documentation/01_Overview.md) | Overview & Key features |
+| [02_Server.md](documentation/02_Server.md) | Project structure & Architecture |
+| [03_Database.md](documentation/03_Database.md) | Database schema & Relationships |
 | [04_Authentication.md](documentation/04_Authentication.md) | JWT & Google OAuth |
 | [05_Workflow.md](documentation/05_Workflow.md) | LlamaIndex workflow |
 | [06_Context.md](documentation/06_Context.md) | LLM context |
-| [07_Memory.md](documentation/07_Memory.md) | Short-term & long-term memory |
+| [07_Memory.md](documentation/07_Memory.md) | Short-term & Long-term memory |
 | [08_Tools.md](documentation/08_Tools.md) | Tools calling |
 | [09_Conversation.md](documentation/09_Conversation.md) | Conversation lifecycle |
-| [10_Presentation.md](documentation/10_Presentation.md) | Presentation generation & versioning |
-| [11_Exception.md](documentation/11_Exception.md) | Exception hierarchy & error handling |
-| [12_Configuration.md](documentation/12_Configuration.md) | Environment variables & config |
+| [10_Presentation.md](documentation/10_Presentation.md) | Presentation generation & Versioning |
+| [11_Exception.md](documentation/11_Exception.md) | Exception hierarchy & Error handling |
+| [12_Configuration.md](documentation/12_Configuration.md) | Environment variables & Config |
 | [13_Logging.md](documentation/13_Logging.md) | Logging pipeline & Grafana |
 | [14_API.md](documentation/14_API.md) | API endpoint reference |
 
