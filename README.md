@@ -10,22 +10,20 @@ Built around a multi step LLM workflow that handles security, intent routing, to
 
 > **Frontend Repository:** [agent_chat_application_frontend](https://github.com/dgbao03/agent_chatbot_frontend)
 
-A companion React-based frontend is available to visually interact with this backend. It provides a full chat UI, conversation management, and an inline AI slide viewer — making it easy to see how the entire system works end-to-end without needing to call the API manually.
+A companion React-based frontend is available to visually interact with this backend. It provides a full chat UI, conversation management, and an inline AI slide viewer, making it easy to see how the entire system works end-to-end without needing to call the API manually.
 
 ---
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|-----------|
-| Framework | FastAPI |
-| AI / LLM | LlamaIndex, OpenAI API |
-| Database | PostgreSQL, SQLAlchemy |
-| Authentication | JWT, Google OAuth 2.0 |
-| Email | aiosmtplib (async SMTP) |
-| Background Tasks | APScheduler |
-| Logging | structlog → Promtail → Loki → Grafana |
-| Deployment | Docker, Docker Compose |
+- **Framework:** FastAPI
+- **AI / LLM:** LlamaIndex, OpenAI API
+- **Database:** PostgreSQL, SQLAlchemy
+- **Authentication:** JWT, Google OAuth 2.0
+- **Email:** aiosmtplib (async SMTP)
+- **Background Tasks:** APScheduler
+- **Logging:** structlog, Promtail, Loki, Grafana
+- **Deployment:** Docker, Docker Compose
 
 ---
 
@@ -128,18 +126,22 @@ Every user message goes through a 3-step `ChatWorkflow` powered by LlamaIndex:
 
 Classifies every user message before any business logic runs.
 
-- Uses a **dedicated LLM** (`LLM_SECURITY_MODEL`, `temperature=0`) for deterministic output
+- Uses a dedicated LLM (`LLM_SECURITY_MODEL`, `temperature=0`) for deterministic output
+
 - Output: `SAFE` → continue to Step 2 | `EXPLOIT` → return rejection immediately
+
 - Detects: jailbreak attempts, prompt injection, requests to view system instructions
-- **Fail-open behavior**: if the security LLM call fails, the request proceeds to Step 2 (availability over strict security)
 
 ### Step 2 — Route & Answer
 
 The main conversation step. Handles both regular chat and tool-augmented responses.
 
-- **Intent detection** via prompt-enforced JSON (LLM cannot use `response_format` and `tools` simultaneously — intent is extracted from the response text)
-- **Tool calling loop**: LLM can call multiple tools sequentially; each result is added to the conversation before the next LLM call
+- Intent detection via prompt-enforced JSON (LLM cannot use `response_format` and `tools` simultaneously, intent is extracted from the response text)
+
+- LLM can call multiple tools sequentially, each result is added to the conversation before the next LLM call
+
 - If `intent = GENERAL` → return answer directly
+
 - If `intent = PPTX` → pass to Step 3
 
 ### Step 3 — Slide Generation
@@ -165,7 +167,7 @@ Generates or edits HTML slide presentations (1280×720px, 3–7 pages).
   Update active_presentation_id on conversation
 ```
 
-**Version archiving** happens automatically on every edit, previous versions remain accessible via `GET /api/presentations/{id}/versions/{version}`.
+- Version archiving happens automatically on every edit, previous versions remain accessible via `GET /api/presentations/{id}/versions/{version}`.
 
 ---
 
@@ -176,21 +178,28 @@ The system maintains three layers of memory per user:
 ### Short-term — Recent Conversation
 
 - Holds the recent conversation turns in LlamaIndex's `ChatMemoryBuffer`
-- Hard limit: **2000 tokens**
+
+- Hard limit: 2000 tokens for Recent Chat History
+
 - When the buffer overflows, truncated messages are moved to long-term memory via summarization
 
 ### Long-term — Conversation Summary
 
-- When `ChatMemoryBuffer` overflows, the oldest **80%** of messages are summarized by a dedicated LLM (`LLM_SUMMARY_MODEL`)
-- The remaining **20%** stay in the buffer (always starting with a user message)
+- When `ChatMemoryBuffer` overflows, the oldest 80% of messages are summarized by a dedicated LLM (`LLM_SUMMARY_MODEL`)
+
+- The remaining 20% stay in the buffer (always starting with a user message)
+
 - The summary is injected into the LLM system prompt on every subsequent turn, the agent stays aware of earlier context without re-reading raw history
-- Summaries are **cumulative** — new summaries build on top of existing ones
+
+- Summaries are cumulative, new summaries build on top of existing ones
 
 ### Long-term — User Facts
 
 - Persistent key-value facts stored per user across all conversations (e.g., `name: "Bao"`, `location: "Hanoi"`)
+
 - Managed exclusively by the agent via three tools: `AddUserFact`, `UpdateUserFact`, `DeleteUserFact`
-- Injected into the system prompt on every turn, the agent "knows" personal context without the user repeating it
+
+- Injected into the system prompt on every turn, the agent knows personal context without the user repeating it
 
 ```
   ┌──────────────────────────────────────────────────────┐
@@ -215,39 +224,42 @@ The system maintains three layers of memory per user:
 
 ## Context Sent to LLM
 
-What the LLM "sees" differs per workflow step:
+What the LLM sees differs per workflow step:
 
-**Step 1 — Security Check:**
+**Step 1 (Security Check)**
 - System prompt (`SECURITY_CHECK_PROMPT`)
+
 - Current user message
 
-**Step 2 — Route & Answer:**
+**Step 2 (Route & Answer)**
 - System prompt (`ROUTER_ANSWER_PROMPT`)
-- Memory: Recent conversation, User facts, Conversation summary
+
+- Memory: Recent Conversation, User Facts, Conversation Summary
+
 - Tool instructions (Usage guide and best practices when using tools)
+
 - Tool definitions (as JSON schema, sent to OpenAI `tools` parameter)
+
 - Current user message
 
-**Step 3 — Slide Generation:**
+**Step 3 (Slide Generation)**
 - System prompt (`SLIDE_GENERATION_PROMPT`)
-- Memory: Recent conversation, Conversation summary
-- Previous presentation HTML (loaded conditionally): only for EDIT actions (single page or full presentation); not loaded for new creations
-- Current user message
 
-**What is never in context:**
-- Messages already moved to summary (only the summary text is included)
-- Slide HTML from other conversations
-- User facts belonging to other users
+- Memory: Recent Conversation, Conversation Summary
+
+- Previous presentation HTML (loaded conditionally), only for EDIT actions (single page or full presentation), not loaded for new creations
+
+- Current user message
 
 ---
 
 ## Getting Started
 
-The system runs entirely via **Docker Compose**
+The system runs entirely via Docker Compose
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- Docker Desktop installed and running on your device
 
 ---
 
@@ -271,7 +283,7 @@ Open `.env` and fill in the required values.
 Generate secure random secret keys:
 
 ```bash
-openssl rand -hex 32    # run twice — once for JWT_SECRET_KEY, once for REFRESH_SECRET_KEY
+openssl rand -hex 32    # run twice, once for JWT_SECRET_KEY, once for REFRESH_SECRET_KEY
 ```
 
 ---
@@ -282,15 +294,15 @@ openssl rand -hex 32    # run twice — once for JWT_SECRET_KEY, once for REFRES
 docker compose up -d
 ```
 
-This starts 5 services in the correct order:
+This starts 5 services in the order:
 
 | Service | Description |
 |---------|-------------|
-| `db` | PostgreSQL 16 (internal only) |
-| `backend` | FastAPI server — runs `alembic upgrade head` then starts uvicorn |
-| `loki` | Log aggregation storage |
-| `promtail` | Reads `logs/app.log` → pushes to Loki |
-| `grafana` | Log visualization dashboard |
+| `db` | PostgreSQL |
+| `backend` | FastAPI server |
+| `loki` | Log storage |
+| `promtail` | Log shipper |
+| `grafana` | Log visualization |
 
 Verify all containers are running:
 
@@ -304,6 +316,7 @@ docker compose ps
 
 ```bash
 curl http://localhost:4040/health
+
 # → {"status": "ok", "version": "2.0.0"}
 ```
 
@@ -311,7 +324,7 @@ curl http://localhost:4040/health
 
 ### 5. Logging Infrastructure
 
-All logging services are included in Docker Compose — no additional installation needed.
+All logging services are included in Docker Compose, no additional installation needed.
 
 **Service ports:**
 
@@ -369,24 +382,34 @@ docker compose restart backend
 
 ## API
 
+Checkout [14_API.md](documentation/14_API.md) for full endpoint reference.
+
 All protected endpoints require: `Authorization: Bearer <access_token>`
 
-| Group | Prefix | Description |
-|-------|--------|-------------|
-| Authentication | `/auth` | Register, login, OAuth, token refresh, password reset |
-| Conversations | `/api/conversations` | CRUD, message history, active presentation |
-| Presentations | `/api/presentations` | Version history (read-only) |
-| Workflow | `/workflows` | AI chat — the main interaction endpoint |
-| Utility | `/health`, `/` | Health check, root info |
+- **Authentication** (`/auth`): Sign up, sign in, sign out, OAuth, password reset
+
+- **Conversations** (`/api/conversations`): CRUD conversations, message history, active presentation
+
+- **Presentations** (`/api/presentations`): View slide version history
+
+- **Workflow** (`/workflows`): Main chat endpoint orchestrating the LLM workflow
+
+- **Utility** (`/health`, `/`): Service health check
 
 **Main endpoint:**
 
 ```
 POST /workflows/chat/run
-Body: { "start_event": { "user_input": "...", "conversation_id": "uuid | null" } }
-```
 
-→ See [14_API.md](documentation/14_API.md) for full endpoint reference.
+Body: 
+{ 
+    "start_event": 
+       { 
+           "user_input": "...", 
+           "conversation_id": "uuid | null" 
+       } 
+}
+```
 
 ---
 
