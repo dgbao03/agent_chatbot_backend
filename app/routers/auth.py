@@ -6,14 +6,17 @@ Responsibilities:
   - Delegate business logic to auth_service
   - Build HTTP responses (tokens, cookies, redirects)
 """
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
-    TokenResponse,
+    TokenBodyResponse,
+    RefreshTokenResponse,
+    MessageResponse,
+    TokenValidResponse,
     OAuthURLResponse,
     CheckProvidersResponse,
     UserInfoResponse,
@@ -46,47 +49,42 @@ def _set_refresh_token_cookie(response, refresh_token: str) -> None:
     )
 
 
-def _create_token_response(access_token: str, user_id: str, email: str, refresh_token: str) -> JSONResponse:
-    """Create JSONResponse with access_token in body and refresh_token in httpOnly cookie."""
-    content = {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": user_id,
-        "email": email,
-    }
-    response = JSONResponse(content=content)
-    _set_refresh_token_cookie(response, refresh_token)
-    return response
-
-
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
-@router.post("/register")
-async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+@router.post("/register", response_model=TokenBodyResponse)
+async def register(request: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """
     Register a new user with email and password.
     Returns access_token in JSON, refresh_token in httpOnly cookie.
     """
     result = auth_service.register(request.email, request.password, request.name, db)
-    return _create_token_response(
-        result["access_token"], result["user_id"], result["email"], result["refresh_token"]
+    _set_refresh_token_cookie(response, result["refresh_token"])
+    return TokenBodyResponse(
+        access_token=result["access_token"],
+        token_type="bearer",
+        user_id=result["user_id"],
+        email=result["email"],
     )
 
 
-@router.post("/login")
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login", response_model=TokenBodyResponse)
+async def login(request: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """
     Login with email and password.
     Returns access_token in JSON, refresh_token in httpOnly cookie.
     """
     result = auth_service.login(request.email, request.password, db)
-    return _create_token_response(
-        result["access_token"], result["user_id"], result["email"], result["refresh_token"]
+    _set_refresh_token_cookie(response, result["refresh_token"])
+    return TokenBodyResponse(
+        access_token=result["access_token"],
+        token_type="bearer",
+        user_id=result["user_id"],
+        email=result["email"],
     )
 
 
-@router.post("/refresh")
+@router.post("/refresh", response_model=RefreshTokenResponse)
 async def refresh_token(request: Request, db: Session = Depends(get_db)):
     """
     Refresh access token using refresh token from httpOnly cookie.
@@ -94,7 +92,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
     """
     refresh_token_value = request.cookies.get(REFRESH_TOKEN_COOKIE_KEY)
     result = auth_service.refresh_access_token(refresh_token_value, db)
-    return JSONResponse(content=result)
+    return result
 
 
 @router.get("/google", response_model=OAuthURLResponse)
@@ -137,28 +135,28 @@ async def check_providers(
     return CheckProvidersResponse(providers=providers)
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """
     Request password reset. Sends reset link to email if user exists with email provider.
     Always returns 200 to avoid email enumeration.
     """
     await auth_service.request_password_reset(request.email, db)
-    return {"message": "If an account exists with that email, you will receive a reset link."}
+    return MessageResponse(message="If an account exists with that email, you will receive a reset link.")
 
 
-@router.get("/verify-reset-token")
+@router.get("/verify-reset-token", response_model=TokenValidResponse)
 async def verify_reset_token(token: str = Query(...), db: Session = Depends(get_db)):
     """Verify if reset token is valid (for frontend to check before showing form)."""
     auth_service.verify_password_reset_token(token, db)
-    return {"valid": True}
+    return TokenValidResponse(valid=True)
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Reset password using token from email link."""
     auth_service.reset_password(request.token, request.new_password, db)
-    return {"message": "Password reset successful. Please login with your new password."}
+    return MessageResponse(message="Password reset successful. Please login with your new password.")
 
 
 @router.post("/signout")

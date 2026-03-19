@@ -4,10 +4,7 @@ Replaces WorkflowServer with direct FastAPI integration.
 """
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from uuid import UUID
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from app.auth.dependencies import get_current_user
 from app.auth.context import (
@@ -19,23 +16,13 @@ from app.auth.context import (
 from app.exceptions import AppException
 from app.config.prompts import ERROR_GENERAL
 from app.database.session import get_db
+from app.schemas.workflow import WorkflowRunRequest
 from app.workflows.workflow import ChatWorkflow
 from app.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
-
-
-class StartEventPayload(BaseModel):
-    """Request body for workflow start event - matches FE format."""
-    user_input: str
-    conversation_id: Optional[UUID] = None
-
-
-class WorkflowRunRequest(BaseModel):
-    """Request body for POST /workflows/chat/run."""
-    start_event: StartEventPayload
 
 
 @router.post("/chat/run")

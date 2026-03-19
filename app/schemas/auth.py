@@ -18,13 +18,30 @@ class LoginRequest(BaseModel):
     password: str = Field(..., description="User's password")
 
 
-class TokenResponse(BaseModel):
-    """Response model for authentication tokens"""
+class TokenBodyResponse(BaseModel):
+    """Response model for login/register — access_token in body, refresh_token in httpOnly cookie."""
     access_token: str = Field(..., description="JWT access token (30 minutes)")
-    refresh_token: str = Field(..., description="JWT refresh token (7 days)")
     token_type: str = Field(default="bearer", description="Token type")
     user_id: str = Field(..., description="User's ID")
     email: str = Field(..., description="User's email")
+
+
+class RefreshTokenResponse(BaseModel):
+    """Response model for token refresh — only new access_token returned."""
+    access_token: str = Field(..., description="New JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    user_id: str = Field(..., description="User's ID")
+    email: str = Field(..., description="User's email")
+
+
+class MessageResponse(BaseModel):
+    """Generic message response."""
+    message: str = Field(..., description="Response message")
+
+
+class TokenValidResponse(BaseModel):
+    """Response model for token validation check."""
+    valid: bool = Field(..., description="Whether the token is valid")
 
 
 class RefreshTokenRequest(BaseModel):
