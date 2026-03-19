@@ -36,9 +36,20 @@ agent_chat_backend/
     ├── config/
     │   ├── llm.py                      # LLM factory (get_llm, get_security_llm, get_summary_llm)
     │   ├── prompts.py                  # All LLM system prompts (security, router, slide, summary)
-    │   ├── pydantic_outputs.py         # Pydantic schemas for LLM structured outputs
     │   ├── settings.py                 # Centralized env var config (LLM models, CORS, cookie)
-    │   └── types.py                    # TypedDict definitions shared across the app
+    │
+    ├── types/                          # Centralized type definitions (schemas + internal types)
+    │   ├── http/                       # Pydantic request/response schemas for HTTP boundary
+    │   │   ├── auth.py
+    │   │   ├── conversation.py
+    │   │   ├── presentation.py
+    │   │   └── workflow.py
+    │   ├── internal/                   # TypedDict definitions shared across code layers
+    │   │   ├── conversation.py
+    │   │   ├── presentation.py
+    │   │   └── user_facts.py
+    │   └── llm/
+    │       └── outputs.py              # Pydantic schemas for LLM structured outputs
     │
     ├── database/
     │   └── session.py                  # SQLAlchemy engine, SessionLocal, Base, get_db dependency (Base is used by Alembic)
@@ -81,12 +92,6 @@ agent_chat_backend/
     │   ├── presentations.py            # /api/presentations — presentation versions and page content
     │   └── workflow.py                 # /workflows/chat/run — triggers ChatWorkflow
     │
-    ├── schemas/                        # Pydantic request/response models for each router
-    │   ├── auth.py
-    │   ├── conversation.py
-    │   ├── presentation.py
-    │   └── user_fact.py
-    │
     ├── services/                       # Business logic layer
     │   ├── auth_service.py             # register, login, token refresh, OAuth callback, password reset
     │   ├── conversation_service.py     # validate_conversation_access, get_or_create_conversation, list/get/update/delete CRUD
@@ -126,7 +131,9 @@ The project uses a **Layer-based** folder structure — folders are grouped by *
   routers/        ←  all API endpoints (HTTP handlers)
   services/       ←  all business logic
   repositories/   ←  all database queries
-  schemas/        ←  all Pydantic request / response models
+  types/http/     ←  all Pydantic request / response models (HTTP boundary)
+  types/internal/ ←  all TypedDict internal types (between code layers)
+  types/llm/      ←  all Pydantic models for structured LLM outputs
   models/         ←  all SQLAlchemy ORM entities
 ```
 
@@ -136,7 +143,7 @@ Each folder contains only **one type of responsibility**. A router never writes 
 - Router can only call Service or Repository — never writes SQL directly
 - Service contains business logic — can call multiple Repositories
 - Repository only writes SQL — no business logic allowed
-- Schema only defines the shape of data — no logic
+- Types only defines the shape of data — no logic
 
 ## 4. Architecture Layers
 

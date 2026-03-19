@@ -156,18 +156,21 @@ llm = get_llm(model="gpt-4o", temperature=0)
 The system defines data in three distinct ways, each serving a different purpose:
 
 ```
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │                                                                     │
-  │  app/models/        → Talks to DATABASE                             │
-  │  (SQLAlchemy ORM)     "Table conversations has columns id, ..."     │
-  │                                                                     │
-  │  app/config/types.py → Talks between CODE LAYERS                    │
-  │  (TypedDict)           "When passing data in Python, it looks..."   │
-  │                                                                     │
-  │  app/config/pydantic_outputs.py → Talks to LLM                      │
-  │  (Pydantic)            "LLM must return output in this format..."   │
-  │                                                                     │
-  └─────────────────────────────────────────────────────────────────────┘
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │                                                                       │
+  │  app/models/              → Talks to DATABASE                         │
+  │  (SQLAlchemy ORM)           "Table conversations has columns id, ..." │
+  │                                                                       │
+  │  app/types/internal/*      → Talks between CODE LAYERS                │
+  │  (TypedDict)                 "When passing data in Python, it looks…" │
+  │                                                                       │
+  │  app/types/llm/outputs.py  → Talks to LLM                             │
+  │  (Pydantic)                  "LLM must return output in this format"  │
+  │                                                                       │
+  │  app/types/http/*          → Talks to CLIENT (HTTP boundary)          │
+  │  (Pydantic)                  "Requests/responses follow this schema"  │
+  │                                                                       │
+  └───────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -218,7 +221,7 @@ Each model class maps **1:1** to a PostgreSQL table. The system has **11 models*
 
 ---
 
-### 4.2. TypedDict (`app/config/types.py`) — Talking Between Code Layers
+### 4.2. TypedDict (`app/types/internal/`) — Talking Between Code Layers
 
 TypedDicts define the shape of Python dictionaries passed between layers. Repository functions convert SQLAlchemy model instances to dicts before returning — this keeps upper layers (Services, Workflow) free from DB session dependencies.
 
@@ -258,7 +261,7 @@ TypedDicts define the shape of Python dictionaries passed between layers. Reposi
 
 ---
 
-### 4.3. Pydantic Models (`app/config/pydantic_outputs.py`) — Talking to the LLM
+### 4.3. Pydantic Models (`app/types/llm/outputs.py`) — Talking to the LLM
 
 Pydantic models define the **exact format the LLM must return**. Without structured output, the LLM returns free-form text — Pydantic enforces a schema so the application can reliably parse and use LLM responses.
 
