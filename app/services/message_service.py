@@ -8,7 +8,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config.types import Message
+from app.types.internal.conversation import Message
 from app.repositories.chat_repository import save_message
 
 

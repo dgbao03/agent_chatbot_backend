@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.presentation import (
+from app.types.http.presentation import (
     VersionInfoResponse,
     VersionContentResponse,
     PageContentResponse,

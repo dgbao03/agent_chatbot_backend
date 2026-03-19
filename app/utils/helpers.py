@@ -2,7 +2,7 @@
 Pure utility functions (no domain dependencies).
 """
 from typing import Optional, List
-from app.config.types import UserFact
+from app.types.internal.user_facts import UserFact
 
 
 def find_fact_by_key(facts: List[UserFact], key: str) -> Optional[UserFact]:

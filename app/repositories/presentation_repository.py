@@ -11,7 +11,7 @@ from app.models import (
     Conversation
 )
 from app.config.pydantic_outputs import PageContent
-from app.config.types import (
+from app.types.internal.presentation import (
     Presentation as PresentationDict,
     PresentationWithPages,
     PresentationVersion as PresentationVersionDict,

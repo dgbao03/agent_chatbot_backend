@@ -4,7 +4,7 @@ Chat history repository - Data access layer for messages.
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from app.models import Message, Conversation
-from app.config.types import Message as MessageDict
+from app.types.internal.conversation import Message as MessageDict
 from app.exceptions import DatabaseError
 from app.logging import get_logger
 

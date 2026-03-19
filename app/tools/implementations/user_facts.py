@@ -5,7 +5,7 @@ from app.tools.base import BaseTool
 from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact as delete_user_fact_repo
 from app.utils.helpers import find_fact_by_key
 from app.auth.context import get_current_user_id, get_current_db_session
-from app.config.types import UserFact
+from app.types.internal.user_facts import UserFact
 
 
 class AddUserFactTool(BaseTool):

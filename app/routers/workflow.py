@@ -16,7 +16,7 @@ from app.auth.context import (
 from app.exceptions import AppException
 from app.config.prompts import ERROR_GENERAL
 from app.database.session import get_db
-from app.schemas.workflow import WorkflowRunRequest
+from app.types.http.workflow import WorkflowRunRequest
 from app.workflows.workflow import ChatWorkflow
 from app.logging import get_logger
 

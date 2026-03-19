@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.conversation import (
+from app.types.http.conversation import (
     ConversationResponse,
     ConversationUpdateRequest,
     ExistsResponse,
     MessageResponse,
 )
-from app.schemas.presentation import ActivePresentationResponse
+from app.types.http.presentation import ActivePresentationResponse
 from app.auth.dependencies import get_current_user
 from app.database.session import get_db
 from app.services import conversation_service

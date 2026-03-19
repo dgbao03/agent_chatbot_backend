@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models import Conversation
-from app.config.types import Conversation as ConversationDict
+from app.types.internal.conversation import Conversation as ConversationDict
 from app.exceptions import DatabaseError
 from app.logging import get_logger
 

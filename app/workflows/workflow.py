@@ -11,7 +11,7 @@ from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.workflow.events import Event
 
 from app.config.pydantic_outputs import RouterOutput, SlideOutput, SecurityOutput
-from app.config.types import Presentation
+from app.types.internal.presentation import Presentation
 from app.config.prompts import SECURITY_CHECK_PROMPT, ERROR_GENERAL
 from app.services.message_service import save_error_response
 from app.tools import registry

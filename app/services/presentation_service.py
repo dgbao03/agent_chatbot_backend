@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from llama_index.core.llms import ChatMessage, MessageRole
 from app.config.pydantic_outputs import SlideIntentOutput, PageContent
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
-from app.config.types import Presentation as PresentationDict
+from app.types.internal.presentation import Presentation as PresentationDict
 from app.exceptions import LLMError, NotFoundError, DatabaseError
 from app.config.settings import LLM_MODEL
 from app.logging import get_logger

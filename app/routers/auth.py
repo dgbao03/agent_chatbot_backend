@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from app.schemas.auth import (
+from app.types.http.auth import (
     LoginRequest,
     RegisterRequest,
     TokenBodyResponse,

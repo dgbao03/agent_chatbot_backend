@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models import UserFact
-from app.config.types import UserFact as UserFactDict
+from app.types.internal.user_facts import UserFact as UserFactDict
 from app.exceptions import DatabaseError
 from app.logging import get_logger
 

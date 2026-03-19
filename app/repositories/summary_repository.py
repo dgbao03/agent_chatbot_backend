@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.models import ConversationSummary, Message, Conversation
-from app.config.types import SummaryDict
+from app.types.internal.conversation import SummaryDict
 from app.exceptions import DatabaseError
 from app.logging import get_logger
 
