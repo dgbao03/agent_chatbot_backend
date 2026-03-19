@@ -10,7 +10,7 @@ from app.models import (
     PresentationVersionPage,
     Conversation
 )
-from app.config.pydantic_outputs import PageContent
+from app.types.llm.outputs import PageContent
 from app.types.internal.presentation import (
     Presentation as PresentationDict,
     PresentationWithPages,

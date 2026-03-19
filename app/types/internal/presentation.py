@@ -5,7 +5,7 @@ Used by: presentation_repository, presentation_service, workflow.
 from typing import TypedDict, Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app.config.pydantic_outputs import PageContent
+    from app.types.llm.outputs import PageContent
 
 
 class PresentationMetadataDict(TypedDict, total=False):

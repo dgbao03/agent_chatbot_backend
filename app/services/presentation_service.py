@@ -4,7 +4,7 @@ Presentation service - Business logic for presentation management.
 from typing import Optional, Tuple, List, Any
 from sqlalchemy.orm import Session
 from llama_index.core.llms import ChatMessage, MessageRole
-from app.config.pydantic_outputs import SlideIntentOutput, PageContent
+from app.types.llm.outputs import SlideIntentOutput, PageContent
 from app.config.prompts import PRESENTATION_INTENT_PROMPT
 from app.types.internal.presentation import Presentation as PresentationDict
 from app.exceptions import LLMError, NotFoundError, DatabaseError

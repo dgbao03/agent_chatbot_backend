@@ -14,7 +14,7 @@ from app.config.prompts import (
     TOOL_BEST_PRACTICES,
     SLIDE_GENERATION_PROMPT,
 )
-from app.config.pydantic_outputs import PageContent
+from app.types.llm.outputs import PageContent
 from app.repositories.summary_repository import load_summary
 from app.repositories.user_facts_repository import load_user_facts
 from app.tools import registry

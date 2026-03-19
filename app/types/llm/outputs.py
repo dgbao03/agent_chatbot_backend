@@ -1,3 +1,7 @@
+"""
+LLM Output Schemas - Pydantic models for structured LLM responses.
+Used to parse and validate output from LLM calls in workflows and services.
+"""
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
 
