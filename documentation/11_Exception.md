@@ -98,7 +98,7 @@ REST endpoints delegate business logic to service functions. Services raise `App
   POST /auth/login
          │
          ▼
-  Router calls auth_service.login(email, password, db)
+  Router calls auth_service.login(email, password)
          │
          ▼
   Service raises AuthenticationError("Invalid email or password")
@@ -180,8 +180,8 @@ Not all errors inside the workflow raise an exception. Some failures — particu
     ...
   except Exception as e:
     logger.error("step_failed", ...)
-    result = await save_error_response(
-        conversation_id, db,
+    result = await self.message_service.save_error_response(
+        conversation_id,
         content=error_output.answer,    ← friendly message
         result_dict=error_output.model_dump(),
         memory=memory, ctx=ctx
@@ -311,14 +311,14 @@ When re-raising exceptions from caught errors, the system uses Python's `raise X
 ```python
 # repositories/conversation_repository.py
 try:
-    db.add(conversation)
-    db.commit()
+    self.db.add(conversation)
+    self.db.commit()
 except Exception as e:
     raise DatabaseError(f"Failed to create conversation: {e}") from e
 
-# services/chat_service.py
+# services/conversation_service.py
 try:
-    conversation = get_conversation_by_id(conversation_id, user_id, db)
+    conversation = self.conversation_repo.get_conversation_by_id(conversation_id, user_id)
     if not conversation:
         raise NotFoundError("Conversation", conversation_id)
 except NotFoundError:

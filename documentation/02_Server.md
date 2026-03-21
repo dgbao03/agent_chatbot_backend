@@ -28,7 +28,7 @@ agent_chat_backend/
 └── app/
     │
     ├── auth/
-    │   ├── context.py                  # ContextVar for user_id and db session (used by Workflow)
+    │   ├── context.py                  # ContextVar for user_id and db session (used by user_facts tools)
     │   ├── dependencies.py             # FastAPI get_current_user dependency (JWT verification)
     │   ├── oauth.py                    # Google OAuth flow (authorization URL, code exchange, user info)
     │   └── utils.py                    # JWT create/verify, password hash/verify
@@ -75,6 +75,10 @@ agent_chat_backend/
     │   ├── presentation_version_page.py
     │   ├── token_blacklist.py
     │   └── password_reset_token.py
+    │
+    ├── dependencies/                   # FastAPI DI factory functions — wires db → Repository → Service
+    │   ├── repositories.py             # get_*_repository() — accepts db via Depends(get_db), returns Repository instance
+    │   └── services.py                 # get_*_service() — accepts repos via Depends, returns Service instance
     │
     ├── repositories/                   # Data access layer — DB queries only, no business logic
     │   ├── user_repository.py
@@ -131,6 +135,7 @@ The project uses a **Layer-based** folder structure — folders are grouped by *
   routers/        ←  all API endpoints (HTTP handlers)
   services/       ←  all business logic
   repositories/   ←  all database queries
+  dependencies/   ←  FastAPI DI factory functions (wire db → Repository → Service)
   types/http/     ←  all Pydantic request / response models (HTTP boundary)
   types/internal/ ←  all TypedDict internal types (between code layers)
   types/llm/      ←  all Pydantic models for structured LLM outputs
@@ -140,9 +145,10 @@ The project uses a **Layer-based** folder structure — folders are grouped by *
 Each folder contains only **one type of responsibility**. A router never writes SQL. A repository never contains business logic. The boundary between layers is strict — data flows in one direction, top to bottom.
 
 **Rules:**
-- Router can only call Service or Repository — never writes SQL directly
-- Service contains business logic — can call multiple Repositories
-- Repository only writes SQL — no business logic allowed
+- Router injects Service via `Depends(get_*_service)` — never instantiates repositories directly, never writes SQL
+- Service contains business logic — receives Repository instances via constructor, can call multiple repositories
+- Repository encapsulates SQL — receives `db: Session` via constructor, no business logic allowed
+- Dependencies layer wires the DI chain: `get_db → Repository(db) → Service(repo)` — routers import only from here
 - Types only defines the shape of data — no logic
 
 ## 4. Architecture Layers
@@ -234,30 +240,54 @@ There are two mechanisms for passing `user_id` depending on the context:
             │
             ▼
   user_id passed explicitly as parameter
-  to repository functions
-  e.g. list_conversations(user_id, db)
-       get_conversation_by_id(id, user_id, db)
+  to service methods (db is handled internally by the service's injected repository)
+  e.g. service.list_conversations(user_id)
+       service.get_conversation(conversation_id, user_id)
 ```
 
-**Mechanism 2 — ContextVar** (used by Workflow):
+**Mechanism 2 — Constructor injection** (used by Workflow):
 
 ```
   JWT token in Authorization header
             │
             ▼
-  get_current_user()        ← same JWT verification
+  get_current_user()        ← FastAPI dependency, extracts user_id from JWT
             │
             ▼
-  set_current_user_id(user_id)
-  stores user_id in Python ContextVar
-  (scoped to the current async task)
+  5 Service instances injected via Depends(get_*_service)
             │
             ▼
-  Workflow steps read user_id via get_current_user_id()
-  and pass it explicitly to service and repository functions
+  ChatWorkflow(
+      user_id=user_id,
+      conversation_service=...,
+      message_service=...,
+      memory_service=...,
+      context_service=...,
+      presentation_service=...,
+  )
+            │
+            ▼
+  Workflow steps access self.user_id and self.xxx_service directly
+  — no ContextVar needed for workflow steps
 ```
 
-The Workflow engine (LlamaIndex) does not support passing `user_id` as a function parameter across steps, so `contextvars.ContextVar` is used to propagate it safely within the scope of a single async request. Workflow steps read the value once via `get_current_user_id()` at the beginning of each step and then pass `user_id` explicitly as a parameter down through the service and repository layers.
+`user_id` and all service dependencies are injected into `ChatWorkflow.__init__()` as instance attributes. Each workflow step accesses them via `self.user_id` and `self.conversation_service.method(...)` — no parameter threading across steps required.
+
+**ContextVar exception — user_facts tools only:**
+
+```
+  set_current_user_id(user_id)    ┐
+  set_current_db_session(db)      ┘ ← set in workflow router BEFORE ChatWorkflow.run()
+
+  LLM invokes AddUserFactTool / UpdateUserFactTool / DeleteUserFactTool
+            │
+            ▼
+  tool.execute(key, value)
+      user_id = get_current_user_id()   ← reads from ContextVar
+      db      = get_current_db_session() ← reads from ContextVar
+```
+
+LLM-invoked tools are called by the LlamaIndex tool-calling loop and cannot receive parameters via FastAPI `Depends`. `ContextVar` is retained **exclusively** for these tools.
 
 ### 5.3. Data isolation per table
 
@@ -288,7 +318,7 @@ For the chat workflow specifically, ownership is checked twice — once at the r
             │
             ▼
   get_current_user()
-  ← Layer 1: JWT verified, user_id extracted and stored in ContextVar
+  ← Layer 1: JWT verified, user_id extracted and injected into ChatWorkflow.__init__
             │
             ▼
   ChatWorkflow.route_and_answer()
@@ -357,27 +387,40 @@ Middleware is applied in the following order (last registered = first executed):
 
 ## 8. Database Session
 
-The database session is managed via a FastAPI dependency (`get_db`) injected into every router handler that needs database access.
+The database session is managed via a FastAPI dependency (`get_db`) and wired through the `app/dependencies/` layer — it is **never passed as a parameter** through routers or services.
 
 ```
   Request arrives
         │
         ▼
-  get_db() opens a new SQLAlchemy session
+  get_db()                          ← opens a new SQLAlchemy session (generator)
         │
         ▼
-  Session passed to router → service → repository
+  app/dependencies/repositories.py
+  get_*_repository(db=Depends(get_db))
+  → ConversationRepository(db)      ← db stored as self.db inside the repo
+        │
+        ▼
+  app/dependencies/services.py
+  get_*_service(repo=Depends(get_*_repository))
+  → ConversationService(repo)       ← repo stored as self.conversation_repo
+        │
+        ▼
+  Router endpoint
+  service: ConversationService = Depends(get_conversation_service)
+  → service.list_conversations(user_id)   ← no db param anywhere here
         │
         ▼
   Request completes (success or error)
         │
         ▼
-  session.close() — always runs in finally block
+  session.close() — always runs in get_db() finally block
 ```
 
-- Each request gets its own isolated session
+- Each request gets its own isolated session — `get_db` is a generator dependency, FastAPI closes it automatically after the response
 - Sessions are never shared across requests
-- If an operation fails, the repository calls `db.rollback()` before returning
+- Routers and services never hold or pass `db` — only `Repository.__init__` receives it once
+- If an operation fails, the repository calls `self.db.rollback()` before raising
 
 ## 9. Database Migration
 

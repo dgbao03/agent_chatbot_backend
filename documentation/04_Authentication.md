@@ -362,36 +362,64 @@ If SMTP is not configured, `send_password_reset_email` returns `False` silently 
 
 ## 8. Auth Context (ContextVar)
 
-### 8.1. Problem
+### 8.1. Scope
 
-FastAPI routers receive `user_id` via `Depends(get_current_user)` and can pass it explicitly to repository functions. However, **LlamaIndex Workflow** executes steps as async tasks — there is no clean way to pass `user_id` as a parameter across workflow steps.
+`app/auth/context.py` uses Python's `contextvars.ContextVar` to store `user_id` and `db` session in the context of the current async execution. After the class-based refactor, this mechanism is used **exclusively** by LLM-invoked user_facts tools — not by workflow steps.
 
-### 8.2. Solution: Python ContextVar
+### 8.2. Why user_facts tools need ContextVar
 
-`app/auth/context.py` uses Python's `contextvars.ContextVar` to store `user_id` and `db` session in the context of the current async execution — accessible anywhere within the same request lifecycle without explicit parameter passing.
+The three UserFact tools (`AddUserFactTool`, `UpdateUserFactTool`, `DeleteUserFactTool`) are called by the LlamaIndex tool-calling loop when the LLM decides to invoke them. At that point, they are plain class methods called by the framework — there is no opportunity to inject `user_id` or `db` via FastAPI's `Depends`. ContextVar is the only safe mechanism to reach these values without restructuring the entire tool architecture.
+
+### 8.3. How workflow steps receive user_id (class-based)
+
+Workflow steps do **not** use ContextVar. Instead, `user_id` and all service dependencies are injected into `ChatWorkflow.__init__()` as instance attributes:
 
 ```
   POST /workflows/chat/run
          │
          ▼
-  get_current_user()                ← FastAPI dependency
-  extracts user_id from JWT
+  get_current_user()                ← FastAPI dependency, extracts user_id from JWT
+  get_conversation_service()        ← FastAPI DI, builds Service + Repository chain
+  ... (5 services total)
          │
          ▼
-  set_current_user_id(user_id)      ← stored in ContextVar
-  set_current_db_session(db)        ← stored in ContextVar
+  ChatWorkflow(
+      user_id=user_id,
+      conversation_service=...,
+      message_service=...,
+      memory_service=...,
+      context_service=...,
+      presentation_service=...,
+  )
+         │
+         ├── security_check step
+         │   └── self.user_id, self.conversation_service   ← instance attributes
+         │
+         ├── route_and_answer step
+         │   └── self.user_id, self.memory_service, ...    ← instance attributes
+         │
+         └── generate_slide step
+             └── self.user_id, self.presentation_service   ← instance attributes
+```
+
+### 8.4. ContextVar flow for user_facts tools
+
+```
+  POST /workflows/chat/run
+         │
+         ▼
+  set_current_user_id(user_id)      ← stored in ContextVar for tools
+  set_current_db_session(db)        ← stored in ContextVar for tools
          │
          ▼
   ChatWorkflow.run()
+  → LLM decides to call add_user_fact(key, value)
          │
-         ├── security_check step
-         │   └── get_current_user_id()   ← reads from ContextVar
-         │
-         ├── route_and_answer step
-         │   └── get_current_user_id()   ← reads from ContextVar
-         │
-         └── generate_slide step
-             └── get_current_user_id()   ← reads from ContextVar
+         ▼
+  AddUserFactTool.execute(key, value)
+      user_id = get_current_user_id()    ← reads from ContextVar
+      db      = get_current_db_session() ← reads from ContextVar
+      UserFactsRepository(db).upsert_user_fact(...)
          │
          ▼
   finally:

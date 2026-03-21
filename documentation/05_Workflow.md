@@ -72,26 +72,55 @@ The workflow runtime inspects the return type of each step and automatically rou
 | `GenerateSlideEvent` | `route_and_answer` | `generate_slide` | `user_input`, `new_conversation_id`, `new_conversation_title` |
 | `StopEvent` | Any step | Workflow runtime | `result` (dict returned to caller) |
 
-### Shared context store
+### Constructor injection — services and user_id
 
-Steps share data through `ctx.store` (the workflow's in-memory context):
+`ChatWorkflow` receives all dependencies via its constructor — no ContextVar or `ctx.store` is needed for `user_id` or database access:
+
+```python
+ChatWorkflow(
+    user_id=user_id,                        # stored as self.user_id
+    conversation_service=conversation_svc,  # stored as self.conversation_service
+    message_service=message_svc,            # stored as self.message_service
+    memory_service=memory_svc,              # stored as self.memory_service
+    context_service=context_svc,            # stored as self.context_service
+    presentation_service=presentation_svc,  # stored as self.presentation_service
+)
+```
+
+Each workflow step accesses services and user_id directly via `self`:
 
 ```
   security_check:
-    ctx.store.set("db", db)          ← DB session stored for later steps
+    self.user_id
+    self.conversation_service.get_or_create_conversation(...)
+    self.message_service.save_user_message(...)
 
   route_and_answer:
-    ctx.store.set("user_id", ...)
-    ctx.store.set("conversation_id", ...)
+    self.user_id
+    self.memory_service.load_conversation_memory(...)
+    self.context_service.build_chat_context(...)
+
+  generate_slide:
+    self.user_id
+    self.presentation_service.detect_presentation_intent(...)
+    self.context_service.build_slide_context(...)
+```
+
+### Shared context store
+
+`ctx.store` is used **only** for ephemeral data that must flow between steps within a single request — not for `db` or `user_id`:
+
+```
+  route_and_answer:
+    ctx.store.set("conversation_id", conversation_id)
     ctx.store.set("chat_history", memory)
 
   generate_slide:
-    ctx.store.get("conversation_id")
-    ctx.store.get("db")
-    ctx.store.get("chat_history")
+    conversation_id = ctx.store.get("conversation_id")
+    chat_history    = ctx.store.get("chat_history")
 ```
 
-This avoids threading `db` and `user_id` through every function call across steps.
+`db` and `user_id` are **never** stored in `ctx.store` — they are available as `self.xxx_service` and `self.user_id` throughout all steps.
 
 ---
 
@@ -180,8 +209,8 @@ The LLM is called with the list of available tools via the **OpenAI function cal
   in response    in response                              │
        │            │                                     │
        ▼            ▼                                     │
-  Execute each   → LLM is done                           │
-  tool call        (final text output)                   │
+  Execute each   → LLM is done                            │
+  tool call        (final text output)                    │
        │                                                  │
        ▼                                                  │
   Append tool results to messages ─────────────────────►─┘

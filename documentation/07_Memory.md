@@ -254,7 +254,7 @@ Two writes happen atomically after a successful summary:
 **1. Mark messages as summarized:**
 
 ```python
-mark_messages_as_summarized(message_ids_to_summarize, db)
+memory_service.summary_repo.mark_messages_as_summarized(message_ids_to_summarize)
 ```
 
 ```sql
@@ -269,7 +269,7 @@ Messages are never deleted — they remain in the `messages` table for the front
 **2. Upsert conversation summary:**
 
 ```python
-save_summary(conversation_id, summary_text, db)
+memory_service.summary_repo.upsert_summary(conversation_id, summary_text)
 ```
 
 ```sql
@@ -392,13 +392,13 @@ User facts are managed entirely through three tools. All three tools access `use
 At the start of every `route_and_answer` step, user facts are loaded and formatted for injection into the system prompt via `build_chat_context` in `context_service.py`:
 
 ```python
-user_facts_text = _get_user_facts_text(user_id, db)
+user_facts_text = self._get_user_facts_text(user_id)
 ```
 
 ```python
-# private helper in context_service.py
-def _get_user_facts_text(user_id: str, db: Session) -> str:
-    facts = load_user_facts(user_id, db)
+# private method in ContextService (class-based — uses self.user_facts_repo internally)
+def _get_user_facts_text(self, user_id: str) -> str:
+    facts = self.user_facts_repo.load_user_facts(user_id)
     lines = ["USER FACTS (Information about the user):"]
     for fact in facts:
         lines.append(f"- {fact['key']}: {fact['value']}")

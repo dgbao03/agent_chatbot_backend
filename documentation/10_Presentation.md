@@ -96,7 +96,7 @@ Key constraint: `UNIQUE(version_id, page_number)` — no duplicate page numbers 
 ### 3.1. Creation (CREATE_NEW)
 
 ```
-  create_presentation(presentation, pages, user_request, db)
+  self.presentation_service.create_presentation(presentation, pages, user_request)
          │
          ▼
   Verify conversation.user_id == current_user_id   ← security check
@@ -106,7 +106,7 @@ Key constraint: `UNIQUE(version_id, page_number)` — no duplicate page numbers 
   (conversation_id, topic, total_pages, version=1, metadata={user_request})
          │
          ▼
-  db.flush()   ← get presentation.id without committing
+  self.db.flush()   ← get presentation.id without committing
          │
          ▼
   INSERT INTO presentation_pages
@@ -118,7 +118,7 @@ Key constraint: `UNIQUE(version_id, page_number)` — no duplicate page numbers 
   SET active_presentation_id = new_presentation.id
          │
          ▼
-  db.commit()
+  self.db.commit()
   └── returns presentation dict with id
 ```
 
@@ -127,7 +127,7 @@ Key constraint: `UNIQUE(version_id, page_number)` — no duplicate page numbers 
 Every edit **archives the current version before replacing it**. This ensures complete history is preserved.
 
 ```
-  update_presentation(presentation, new_pages, user_request, db)
+  self.presentation_service.update_presentation(presentation, new_pages, user_request)
          │
          ▼
   Get current presentation, verify ownership
@@ -140,7 +140,7 @@ Every edit **archives the current version before replacing it**. This ensures co
   │  INSERT INTO presentation_versions              │
   │  (presentation_id, version=2, total_pages,      │
   │   user_request=old_user_request)                │
-  │  db.flush()  ← get version_id                   │
+  │  self.db.flush()  ← get version_id               │
   │                                                  │
   │  INSERT INTO presentation_version_pages         │
   │  (version_id, page_number, html_content,        │
@@ -169,7 +169,7 @@ Every edit **archives the current version before replacing it**. This ensures co
       total_pages=new_total, metadata={user_request=new_request}
          │
          ▼
-  db.commit()
+  self.db.commit()
 
   set_active_presentation(conversation_id, presentation_id)
   └── UPDATE conversations SET active_presentation_id = X
@@ -273,18 +273,18 @@ This pattern is used consistently in every repository function — `load_present
   (generate_slide step)         (/presentations/* routes)
          │                              │
          ▼                              ▼
-  get_current_user_id()         get_current_user dependency
-  ← reads from ContextVar       ← JWT token verification
+  self.user_id                  get_current_user dependency
+  ← injected via __init__       ← JWT token verification
          │                              │
          └──────────────┬───────────────┘
                         ▼
-              service function(user_id, ...)
+              service.method(user_id, ...)
                         │
                         ▼
-              repository function(user_id, ...)
+              self.repo.method(user_id, ...)
 ```
 
-Repository functions always receive `user_id` as an explicit required parameter. The workflow steps read it once from ContextVar at the start of the step, and service functions pass it down through all layers.
+Repository methods always receive `user_id` as an explicit required parameter. In the workflow, `user_id` is available as `self.user_id` (injected via `ChatWorkflow.__init__`). In API endpoints, it is extracted from the JWT by `get_current_user` and passed to the injected service.
 
 ---
 

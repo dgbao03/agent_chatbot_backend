@@ -55,16 +55,17 @@ Conversations are **created automatically by the workflow** — there is no expl
   { start_event: { user_input: "...", conversation_id: null } }
          │
          ▼
-  create_new_conversation(user_id, db)
-  → INSERT INTO conversations (user_id, title=null)
-  → returns conversation_id
+  self.conversation_service.get_or_create_conversation(user_id, None, user_input)
+  → conversation_repo.create_new_conversation(user_id)
+    → INSERT INTO conversations (user_id, title=null)
+    → returns conversation_id
          │
          ▼
   generate_conversation_title(user_input)
   → returns title string (max 60 chars, no LLM)
          │
          ▼
-  update_conversation_title(conversation_id, title)
+  conversation_repo.update_conversation_title(conversation_id, title, user_id)
          │
          ▼
   Workflow result includes:
@@ -161,7 +162,7 @@ All conversation endpoints require a valid JWT token. `user_id` is extracted fro
 Repository functions always filter by `user_id`:
 
 ```python
-db.query(Conversation).filter(
+self.db.query(Conversation).filter(
     Conversation.id == conversation_id,
     Conversation.user_id == user_id    ← ownership enforced here
 ).first()
@@ -171,15 +172,15 @@ If the conversation does not exist or belongs to a different user, the query ret
 
 ### 4.2. Workflow layer
 
-When the frontend sends a request with an existing `conversation_id`, the workflow validates ownership using `validate_conversation_access()`:
+When the frontend sends a request with an existing `conversation_id`, the workflow validates ownership via `ConversationService`:
 
 ```python
-def validate_conversation_access(user_id, conversation_id, db):
-    conversation = db.query(Conversation).filter(
-        Conversation.id == conversation_id,
-        Conversation.user_id == user_id
-    ).first()
+# Inside a workflow step — service is injected via ChatWorkflow.__init__
+self.conversation_service.validate_conversation_access(user_id, conversation_id)
 
+# Inside ConversationService (no db parameter — uses self.conversation_repo internally)
+def validate_conversation_access(self, user_id: str, conversation_id: str) -> None:
+    conversation = self.conversation_repo.get_conversation_by_id(conversation_id, user_id)
     if not conversation:
         raise NotFoundError("Conversation", conversation_id)
 ```
