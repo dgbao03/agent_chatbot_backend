@@ -16,8 +16,9 @@ _current_db_session: ContextVar[Optional[Session]] = ContextVar("current_db_sess
 def set_current_user_id(user_id: str) -> None:
     """
     Set current user ID in context.
-    Called by auth middleware/dependency after JWT verification.
-    
+    Called by the workflow router before running ChatWorkflow, so that
+    LLM-invoked tools (e.g. user_facts tools) can access it via ContextVar.
+
     Args:
         user_id: UUID of authenticated user
     """
@@ -27,11 +28,12 @@ def set_current_user_id(user_id: str) -> None:
 def get_current_user_id() -> Optional[str]:
     """
     Get current user ID from context.
-    Used by repositories to filter queries (replaces RLS).
-    
+    Used exclusively by LLM-invoked tools (e.g. user_facts tools) that cannot
+    receive user_id via dependency injection.
+
     Returns:
         user_id or None if not authenticated
-        
+
     Raises:
         AuthenticationError: If no user_id in context (unauthenticated request)
     """
@@ -52,8 +54,9 @@ def clear_current_user_id() -> None:
 def set_current_db_session(db: Session) -> None:
     """
     Set current database session in context.
-    Called by auth middleware after creating db session.
-    
+    Called by the workflow router before running ChatWorkflow, so that
+    LLM-invoked tools (e.g. user_facts tools) can access it via ContextVar.
+
     Args:
         db: SQLAlchemy database session
     """
@@ -63,11 +66,12 @@ def set_current_db_session(db: Session) -> None:
 def get_current_db_session() -> Session:
     """
     Get current database session from context.
-    Used by workflow to access database.
-    
+    Used exclusively by LLM-invoked tools (e.g. user_facts tools) that cannot
+    receive db via dependency injection.
+
     Returns:
         SQLAlchemy Session
-        
+
     Raises:
         DatabaseError: If no db session in context
     """
