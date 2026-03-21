@@ -8,8 +8,8 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.database.session import SessionLocal
-from app.repositories.token_blacklist_repository import cleanup_expired_tokens
-from app.repositories.password_reset_token_repository import cleanup_expired_reset_tokens
+from app.repositories.token_blacklist_repository import TokenBlacklistRepository
+from app.repositories.password_reset_token_repository import PasswordResetTokenRepository
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,8 +25,8 @@ def run_cleanup() -> None:
     start = time.perf_counter()
     db = SessionLocal()
     try:
-        cleanup_expired_tokens(db)
-        cleanup_expired_reset_tokens(db)
+        TokenBlacklistRepository(db).cleanup_expired_tokens()
+        PasswordResetTokenRepository(db).cleanup_expired_reset_tokens()
         duration_ms = round((time.perf_counter() - start) * 1000)
         logger.info("cleanup_completed", duration_ms=duration_ms)
     except Exception as e:

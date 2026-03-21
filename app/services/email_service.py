@@ -18,27 +18,28 @@ from app.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _is_smtp_configured() -> bool:
-    """Check if SMTP is properly configured."""
-    return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
+class EmailService:
 
+    def _is_smtp_configured(self) -> bool:
+        """Check if SMTP is properly configured."""
+        return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
 
-async def send_password_reset_email(to_email: str, reset_link: str) -> bool:
-    """
-    Send password reset email.
+    async def send_password_reset_email(self, to_email: str, reset_link: str) -> bool:
+        """
+        Send password reset email.
 
-    Args:
-        to_email: Recipient email address
-        reset_link: Full URL to reset password page (e.g. https://app.com/reset-password?token=xxx)
+        Args:
+            to_email: Recipient email address
+            reset_link: Full URL to reset password page (e.g. https://app.com/reset-password?token=xxx)
 
-    Returns:
-        True if sent successfully, False otherwise
-    """
-    if not _is_smtp_configured():
-        return False
+        Returns:
+            True if sent successfully, False otherwise
+        """
+        if not self._is_smtp_configured():
+            return False
 
-    subject = "Reset your password - Chat Assistant"
-    html_body = f"""
+        subject = "Reset your password - Chat Assistant"
+        html_body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <h2>Reset your password</h2>
@@ -51,25 +52,25 @@ async def send_password_reset_email(to_email: str, reset_link: str) -> bool:
     </body>
     </html>
     """
-    plain_body = f"""Reset your password\n\nClick the link below to set a new password:\n{reset_link}\n\nThis link will expire in 15 minutes.\n\nIf you didn't request this, you can safely ignore this email."""
+        plain_body = f"""Reset your password\n\nClick the link below to set a new password:\n{reset_link}\n\nThis link will expire in 15 minutes.\n\nIf you didn't request this, you can safely ignore this email."""
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
-    msg["To"] = to_email
-    msg.attach(MIMEText(plain_body, "plain"))
-    msg.attach(MIMEText(html_body, "html"))
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(plain_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
 
-    try:
-        await aiosmtplib.send(
-            msg,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USER,
-            password=SMTP_PASSWORD,
-            use_tls=SMTP_USE_TLS,  # True for port 465, False for 587 (STARTTLS auto)
-        )
-        return True
-    except Exception:
-        logger.exception("send_password_reset_email_failed")
-        return False
+        try:
+            await aiosmtplib.send(
+                msg,
+                hostname=SMTP_HOST,
+                port=SMTP_PORT,
+                username=SMTP_USER,
+                password=SMTP_PASSWORD,
+                use_tls=SMTP_USE_TLS,
+            )
+            return True
+        except Exception:
+            logger.exception("send_password_reset_email_failed")
+            return False

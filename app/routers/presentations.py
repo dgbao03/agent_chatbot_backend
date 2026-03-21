@@ -3,7 +3,6 @@ Presentations Router - Presentation read endpoints
 """
 from uuid import UUID
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from typing import List
 
 from app.types.http.presentation import (
@@ -12,8 +11,8 @@ from app.types.http.presentation import (
     PageContentResponse,
 )
 from app.auth.dependencies import get_current_user
-from app.database.session import get_db
-from app.services import presentation_service
+from app.services.presentation_service import PresentationService
+from app.dependencies.services import get_presentation_service
 
 router = APIRouter(prefix="/presentations", tags=["presentations"])
 
@@ -22,10 +21,10 @@ router = APIRouter(prefix="/presentations", tags=["presentations"])
 async def list_presentation_versions(
     presentation_id: UUID,
     user_id: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: PresentationService = Depends(get_presentation_service),
 ):
     """Get all versions of a presentation"""
-    versions = presentation_service.get_presentation_versions(str(presentation_id), user_id, db)
+    versions = service.get_presentation_versions(str(presentation_id), user_id)
     return [
         VersionInfoResponse(
             version=v["version"],
@@ -44,10 +43,10 @@ async def get_version_content_endpoint(
     presentation_id: UUID,
     version: int,
     user_id: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    service: PresentationService = Depends(get_presentation_service),
 ):
     """Get pages content of a specific version"""
-    data = presentation_service.get_version_content(str(presentation_id), version, user_id, db)
+    data = service.get_version_content(str(presentation_id), version, user_id)
     pages = [
         PageContentResponse(
             page_number=p.page_number,

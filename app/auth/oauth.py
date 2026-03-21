@@ -5,7 +5,7 @@ import secrets
 from typing import Dict, Optional, Tuple
 from authlib.integrations.starlette_client import OAuth
 from sqlalchemy.orm import Session
-from app.repositories.user_repository import get_user_by_email, create_user, update_user
+from app.repositories.user_repository import UserRepository
 from app.models import User
 from app.config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 from app.logging import get_logger
@@ -149,10 +149,11 @@ def get_or_create_oauth_user(
     Returns:
         Tuple of (User object or None, is_new_user boolean)
     """
+    repo = UserRepository(db)
     try:
         # Check if user exists with this email
-        existing_user = get_user_by_email(email, db)
-        
+        existing_user = repo.get_user_by_email(email)
+
         if existing_user:
             # User exists - add OAuth provider to providers list (don't overwrite)
             current_providers = list(existing_user.providers or [])
@@ -169,7 +170,7 @@ def get_or_create_oauth_user(
             if not existing_user.avatar_url and avatar_url:
                 update_data["avatar_url"] = avatar_url
 
-            updated = update_user(str(existing_user.id), update_data, db)
+            updated = repo.update_user(str(existing_user.id), update_data)
             return (updated, False)
         else:
             # Create new user
@@ -182,10 +183,10 @@ def get_or_create_oauth_user(
                 "email_verified": True,
                 "hashed_password": None  # OAuth users don't have password
             }
-            
-            new_user = create_user(user_data, db)
+
+            new_user = repo.create_user(user_data)
             return (new_user, True)
-            
+
     except Exception:
         logger.exception("get_or_create_oauth_user_failed")
         db.rollback()

@@ -2,7 +2,7 @@
 User Facts Tools - Add, update, and delete user facts.
 """
 from app.tools.base import BaseTool
-from app.repositories.user_facts_repository import load_user_facts, upsert_user_fact, delete_user_fact as delete_user_fact_repo
+from app.repositories.user_facts_repository import UserFactsRepository
 from app.utils.helpers import find_fact_by_key
 from app.auth.context import get_current_user_id, get_current_db_session
 from app.types.internal.user_facts import UserFact
@@ -51,7 +51,7 @@ class AddUserFactTool(BaseTool):
                 "key": key_clean,
                 "value": value_clean,
             }
-            saved_fact = upsert_user_fact(fact, db)
+            saved_fact = UserFactsRepository(db).upsert_user_fact(fact)
             if saved_fact:
                 return f"Saved: {key_clean} = {value_clean}"
             else:
@@ -99,19 +99,20 @@ class UpdateUserFactTool(BaseTool):
             value_clean = value.strip()
             
             # Check if fact exists
-            facts = load_user_facts(user_id, db)
+            repo = UserFactsRepository(db)
+            facts = repo.load_user_facts(user_id)
             fact = find_fact_by_key(facts, key_clean)
-            
+
             if not fact:
                 return f"No information found for key: {key_clean}. Use add_user_fact to add new."
-            
+
             # Update fact
             fact_to_update: UserFact = {
                 "user_id": user_id,
                 "key": key_clean,
                 "value": value_clean,
             }
-            saved_fact = upsert_user_fact(fact_to_update, db)
+            saved_fact = repo.upsert_user_fact(fact_to_update)
             if saved_fact:
                 return f"Updated: {key_clean} = {value_clean}"
             else:
@@ -154,14 +155,15 @@ class DeleteUserFactTool(BaseTool):
             key_clean = key.strip()
             
             # Check if fact exists
-            facts = load_user_facts(user_id, db)
+            repo = UserFactsRepository(db)
+            facts = repo.load_user_facts(user_id)
             fact = find_fact_by_key(facts, key_clean)
-            
+
             if not fact:
                 return f"No information found for key: {key_clean}"
-            
+
             # Delete fact
-            if delete_user_fact_repo(user_id, key_clean, db):
+            if repo.delete_user_fact(user_id, key_clean):
                 return f"Deleted: {key_clean}"
             else:
                 return "Error: Failed to delete information."

@@ -13,28 +13,19 @@ from llama_index.core.workflow.events import Event
 from app.types.llm.outputs import RouterOutput, SlideOutput, SecurityOutput
 from app.types.internal.presentation import Presentation
 from app.config.prompts import SECURITY_CHECK_PROMPT, ERROR_GENERAL
-from app.services.message_service import save_error_response
 from app.tools import registry
-from app.exceptions import AccessDeniedError, ValidationError, DatabaseError
-from app.auth.context import get_current_user_id, get_current_db_session
-from app.services.conversation_service import get_or_create_conversation
-from app.services.presentation_service import (
-    detect_presentation_intent,
-    get_presentation,
-    save_new_presentation,
-    save_updated_presentation,
-    activate_presentation,
-)
-from app.services import memory_service, context_service, message_service
+from app.exceptions import AccessDeniedError, ValidationError
+from app.services.conversation_service import ConversationService
+from app.services.message_service import MessageService
+from app.services.memory_service import MemoryService
+from app.services.context_service import ContextService
+from app.services.presentation_service import PresentationService
 from app.workflows.memory_manager import process_memory_truncation
 from app.config.llm import get_llm, get_security_llm
 from app.config.settings import LLM_MODEL, LLM_SECURITY_MODEL
 from app.logging import get_logger
 
 logger = get_logger(__name__)
-
-llm = get_llm()
-llm_security = get_security_llm()
 
 
 class StreamResponseEvent(Event):
@@ -58,11 +49,29 @@ error_output = RouterOutput(
     answer=ERROR_GENERAL,
 )
 
-# Get all enabled tools from registry
-tools = registry.get_llama_tools()
-
 
 class ChatWorkflow(Workflow):
+
+    def __init__(
+        self,
+        user_id: str,
+        conversation_service: ConversationService,
+        message_service: MessageService,
+        memory_service: MemoryService,
+        context_service: ContextService,
+        presentation_service: PresentationService,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.user_id = user_id
+        self.conversation_service = conversation_service
+        self.message_service = message_service
+        self.memory_service = memory_service
+        self.context_service = context_service
+        self.presentation_service = presentation_service
+        self.llm = get_llm()
+        self.llm_security = get_security_llm()
+        self.tools = registry.get_llama_tools()
 
     @step
     async def security_check(self, ctx: Context, ev: StartEvent) -> Union[StopEvent, BusinessRouterEvent]:
@@ -76,12 +85,6 @@ class ChatWorkflow(Workflow):
 
         logger.info("security_check_started", conversation_id=conversation_id)
 
-        # Get db session from ContextVar (set by workflow router)
-        db = get_current_db_session()
-
-        # Store db in context for other steps
-        await ctx.store.set("db", db)
-
         system_prompt = SECURITY_CHECK_PROMPT
 
         try:
@@ -91,7 +94,7 @@ class ChatWorkflow(Workflow):
                 ChatMessage(role=MessageRole.SYSTEM, content=system_prompt),
                 ChatMessage(role=MessageRole.USER, content=user_input),
             ]
-            resp = await llm_security.achat(security_messages, response_format={
+            resp = await self.llm_security.achat(security_messages, response_format={
                 "type": "json_schema",
                 "json_schema": {
                     "name": "SecurityOutput",
@@ -124,24 +127,21 @@ class ChatWorkflow(Workflow):
                     duration_ms=round((time.perf_counter() - step_start) * 1000),
                 )
 
-                user_id = get_current_user_id()
-
-                if not user_id:
+                if not self.user_id:
                     raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
 
                 # Conversation management (create new or validate existing)
-                conversation_id, new_conv_id, new_conv_title = get_or_create_conversation(
-                    user_id, conversation_id, user_input, db
+                conversation_id, new_conv_id, new_conv_title = self.conversation_service.get_or_create_conversation(
+                    self.user_id, conversation_id, user_input
                 )
 
                 # Persist user + rejection messages
-                message_service.save_user_message(conversation_id, user_input, db)
-                message_service.save_assistant_message(
+                self.message_service.save_user_message(conversation_id, user_input)
+                self.message_service.save_assistant_message(
                     conversation_id,
                     result.answer or "I cannot assist with that request.",
                     "GENERAL",  # DB does not allow SYSTEM_EXPLOIT; store in metadata
                     {"security_classification": "EXPLOIT"},
-                    db,
                 )
 
                 response_result = {
@@ -187,29 +187,25 @@ class ChatWorkflow(Workflow):
         user_input = ev.user_input
         conversation_id = ev.conversation_id
 
-        db = await ctx.store.get("db")
-        user_id = get_current_user_id()
-
-        if not user_id:
+        if not self.user_id:
             raise AccessDeniedError("user_id is missing or invalid. Authentication failed.")
 
         # 1. Conversation management
-        conversation_id, new_conv_id, new_conv_title = get_or_create_conversation(
-            user_id, conversation_id, user_input, db
+        conversation_id, new_conv_id, new_conv_title = self.conversation_service.get_or_create_conversation(
+            self.user_id, conversation_id, user_input
         )
 
-        await ctx.store.set("user_id", user_id)
         await ctx.store.set("conversation_id", conversation_id)
 
-        openai_tools = [tool.metadata.to_openai_tool() for tool in tools]
+        openai_tools = [tool.metadata.to_openai_tool() for tool in self.tools]
 
         # 2. Memory management
-        memory = memory_service.load_conversation_memory(conversation_id, user_id, db)
+        memory = self.memory_service.load_conversation_memory(conversation_id, self.user_id)
         await ctx.store.set("chat_history", memory)
         history = memory.get()
 
         # 3. Context assembly
-        system_content = context_service.build_chat_context(user_id, conversation_id, history, db)
+        system_content = self.context_service.build_chat_context(self.user_id, conversation_id, history)
 
         messages = [
             ChatMessage(role=MessageRole.SYSTEM, content=system_content)
@@ -217,7 +213,7 @@ class ChatWorkflow(Workflow):
         messages.append(ChatMessage(role=MessageRole.USER, content=user_input))
 
         # 4. Save user message
-        user_msg_id = message_service.save_user_message(conversation_id, user_input, db)
+        user_msg_id = self.message_service.save_user_message(conversation_id, user_input)
         logger.debug("message_saved", conversation_id=conversation_id, role="user")
 
         memory.put(ChatMessage(
@@ -235,7 +231,7 @@ class ChatWorkflow(Workflow):
             llm_start = time.perf_counter()
 
             try:
-                resp = await llm.achat(messages, tools=openai_tools)
+                resp = await self.llm.achat(messages, tools=openai_tools)
             except Exception as e:
                 logger.error(
                     "llm_call_failed",
@@ -244,8 +240,8 @@ class ChatWorkflow(Workflow):
                     error_type=type(e).__name__,
                     error_message=str(e),
                 )
-                result = await save_error_response(
-                    conversation_id, db, error_output.answer, error_output.model_dump(),
+                result = await self.message_service.save_error_response(
+                    conversation_id, error_output.answer, error_output.model_dump(),
                     memory, ctx
                 )
                 return StopEvent(result=result)
@@ -321,8 +317,8 @@ class ChatWorkflow(Workflow):
                 error_type=type(e).__name__,
                 raw_output_length=len(raw_text),
             )
-            result = await save_error_response(
-                conversation_id, db, error_output.answer, error_output.model_dump(),
+            result = await self.message_service.save_error_response(
+                conversation_id, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
@@ -338,8 +334,8 @@ class ChatWorkflow(Workflow):
 
         # 6. Save assistant message and update memory (GENERAL intent only)
         if output.intent == "GENERAL":
-            assistant_msg_id = message_service.save_assistant_message(
-                conversation_id, output.answer, output.intent, {}, db
+            assistant_msg_id = self.message_service.save_assistant_message(
+                conversation_id, output.answer, output.intent, {}
             )
             logger.debug("message_saved", conversation_id=conversation_id, role="assistant", intent="GENERAL")
 
@@ -352,7 +348,7 @@ class ChatWorkflow(Workflow):
         await ctx.store.set("chat_history", memory)
 
         if output.intent == "GENERAL":
-            await process_memory_truncation(ctx, memory)
+            await process_memory_truncation(ctx, memory, self.memory_service, self.user_id)
 
         result = output.model_dump()
 
@@ -369,8 +365,8 @@ class ChatWorkflow(Workflow):
                 new_conversation_title=new_conv_title
             )
         else:
-            result = await save_error_response(
-                conversation_id, db, error_output.answer, error_output.model_dump(),
+            result = await self.message_service.save_error_response(
+                conversation_id, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
@@ -380,8 +376,6 @@ class ChatWorkflow(Workflow):
         """Slide generation step."""
         step_start = time.perf_counter()
         conversation_id = await ctx.store.get("conversation_id")
-        user_id = await ctx.store.get("user_id")
-        db = await ctx.store.get("db")
         memory: ChatMemoryBuffer = await ctx.store.get("chat_history")
         history = memory.get() if memory else []
 
@@ -389,8 +383,8 @@ class ChatWorkflow(Workflow):
 
         try:
             intent_start = time.perf_counter()
-            action, target_presentation_id, target_page_number = await detect_presentation_intent(
-                ev.user_input, conversation_id, user_id, llm, db
+            action, target_presentation_id, target_page_number = await self.presentation_service.detect_presentation_intent(
+                ev.user_input, conversation_id, self.user_id, self.llm
             )
             logger.info(
                 "presentation_intent_detected",
@@ -407,8 +401,8 @@ class ChatWorkflow(Workflow):
                 error_message=str(e),
                 duration_ms=round((time.perf_counter() - step_start) * 1000),
             )
-            result = await save_error_response(
-                conversation_id, db, error_output.answer, error_output.model_dump(),
+            result = await self.message_service.save_error_response(
+                conversation_id, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
@@ -416,14 +410,14 @@ class ChatWorkflow(Workflow):
         previous_pages = None
         total_pages = None
         if target_presentation_id:
-            presentation_data = get_presentation(target_presentation_id, user_id, db)
+            presentation_data = self.presentation_service.get_presentation(target_presentation_id, self.user_id)
             if presentation_data:
                 previous_pages = presentation_data["pages"]
                 total_pages = presentation_data["total_pages"]
 
         # Context assembly for slide generation
-        system_content, target_page_number = context_service.build_slide_context(
-            conversation_id, user_id, history, action, previous_pages, total_pages, target_page_number, db
+        system_content, target_page_number = self.context_service.build_slide_context(
+            conversation_id, self.user_id, history, action, previous_pages, total_pages, target_page_number
         )
 
         slide_messages = [
@@ -433,7 +427,7 @@ class ChatWorkflow(Workflow):
 
         llm_start = time.perf_counter()
         try:
-            resp = await llm.achat(slide_messages, response_format={
+            resp = await self.llm.achat(slide_messages, response_format={
                 "type": "json_schema",
                 "json_schema": {
                     "name": "SlideOutput",
@@ -449,8 +443,8 @@ class ChatWorkflow(Workflow):
                 error_message=str(e),
                 duration_ms=round((time.perf_counter() - step_start) * 1000),
             )
-            result = await save_error_response(
-                conversation_id, db, error_output.answer, error_output.model_dump(),
+            result = await self.message_service.save_error_response(
+                conversation_id, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
@@ -495,12 +489,11 @@ class ChatWorkflow(Workflow):
                     "total_pages": slide_output.total_pages,
                     "version": 1,
                 }
-                saved_presentation = save_new_presentation(
+                saved_presentation = self.presentation_service.save_new_presentation(
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
-                    user_id=user_id,
-                    db=db,
+                    user_id=self.user_id,
                 )
                 presentation_id = saved_presentation["id"]
                 logger.info(
@@ -519,15 +512,14 @@ class ChatWorkflow(Workflow):
                     "total_pages": slide_output.total_pages,
                     "version": 1,
                 }
-                updated_presentation = save_updated_presentation(
+                updated_presentation = self.presentation_service.save_updated_presentation(
                     presentation=presentation,
                     pages=slide_output.pages,
                     user_request=ev.user_input,
-                    user_id=user_id,
-                    db=db,
+                    user_id=self.user_id,
                 )
                 presentation_id = updated_presentation["id"]
-                activate_presentation(conversation_id, presentation_id, user_id, db)
+                self.presentation_service.activate_presentation(conversation_id, presentation_id, self.user_id)
                 logger.info(
                     "presentation_updated",
                     presentation_id=presentation_id,
@@ -542,15 +534,15 @@ class ChatWorkflow(Workflow):
                 error_message=str(e),
                 duration_ms=round((time.perf_counter() - step_start) * 1000),
             )
-            result = await save_error_response(
-                conversation_id, db, error_output.answer, error_output.model_dump(),
+            result = await self.message_service.save_error_response(
+                conversation_id, error_output.answer, error_output.model_dump(),
                 memory, ctx
             )
             return StopEvent(result=result)
 
         # Save assistant message
         try:
-            assistant_msg_id = message_service.save_assistant_message(
+            assistant_msg_id = self.message_service.save_assistant_message(
                 conversation_id,
                 slide_output.answer,
                 "PPTX",
@@ -560,7 +552,6 @@ class ChatWorkflow(Workflow):
                     "topic": slide_output.topic,
                     "slide_id": presentation_id,
                 },
-                db,
             )
         except Exception:
             assistant_msg_id = None
@@ -572,7 +563,7 @@ class ChatWorkflow(Workflow):
                 additional_kwargs={"message_id": assistant_msg_id},
             ))
         await ctx.store.set("chat_history", memory)
-        await process_memory_truncation(ctx, memory)
+        await process_memory_truncation(ctx, memory, self.memory_service, self.user_id)
 
         logger.info(
             "slide_generation_completed",

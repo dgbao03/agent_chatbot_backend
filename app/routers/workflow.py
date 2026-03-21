@@ -18,6 +18,18 @@ from app.config.prompts import ERROR_GENERAL
 from app.database.session import get_db
 from app.types.http.workflow import WorkflowRunRequest
 from app.workflows.workflow import ChatWorkflow
+from app.services.conversation_service import ConversationService
+from app.services.message_service import MessageService
+from app.services.memory_service import MemoryService
+from app.services.context_service import ContextService
+from app.services.presentation_service import PresentationService
+from app.dependencies.services import (
+    get_conversation_service,
+    get_message_service,
+    get_memory_service,
+    get_context_service,
+    get_presentation_service,
+)
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -29,11 +41,16 @@ router = APIRouter(prefix="/workflows", tags=["workflows"])
 async def run_chat_workflow(
     body: WorkflowRunRequest,
     user_id: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    message_service: MessageService = Depends(get_message_service),
+    memory_service: MemoryService = Depends(get_memory_service),
+    context_service: ContextService = Depends(get_context_service),
+    presentation_service: PresentationService = Depends(get_presentation_service),
+    db: Session = Depends(get_db),  # kept for user_facts tools that read from ContextVar
 ):
     """
     Run the Chat Workflow manually.
-    Sets auth context (user_id, db) before execution.
+    Sets auth context (user_id, db) before execution for user_facts tools.
     Returns format expected by frontend: { status, result } or { error }.
     """
     if not body.start_event.user_input or not body.start_event.user_input.strip():
@@ -42,12 +59,20 @@ async def run_chat_workflow(
             content={"status": "error", "error": "user_input is required and cannot be empty"},
         )
 
-    # Set context for workflow (replaces AuthMiddleware)
+    # Set ContextVar for user_facts tools (AddUserFactTool, UpdateUserFactTool, DeleteUserFactTool)
+    # These tools are called by LLM during tool-calling loop and cannot receive db/user_id via params
     set_current_user_id(user_id)
     set_current_db_session(db)
 
     try:
-        workflow = ChatWorkflow()
+        workflow = ChatWorkflow(
+            user_id=user_id,
+            conversation_service=conversation_service,
+            message_service=message_service,
+            memory_service=memory_service,
+            context_service=context_service,
+            presentation_service=presentation_service,
+        )
         conv_id = str(body.start_event.conversation_id) if body.start_event.conversation_id else None
         handler = workflow.run(
             user_input=body.start_event.user_input,
